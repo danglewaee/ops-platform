@@ -108,3 +108,138 @@ class PipelineReport:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "PipelineReport":
+        return cls(
+            metadata=ScenarioMetadata.from_dict(payload["metadata"]),
+            anomalies=[Anomaly.from_dict(item) for item in payload["anomalies"]],
+            incidents=[Incident.from_dict(item) for item in payload["incidents"]],
+            forecasts=[Forecast.from_dict(item) for item in payload["forecasts"]],
+            recommendations=[Recommendation.from_dict(item) for item in payload["recommendations"]],
+            evaluation=EvaluationSummary.from_dict(payload["evaluation"]),
+        )
+
+
+def _parse_datetime(value: str | datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
+@classmethod
+def _metric_sample_from_dict(cls, payload: dict[str, Any]) -> "MetricSample":
+    return cls(
+        timestamp=_parse_datetime(payload["timestamp"]),
+        step=payload["step"],
+        service=payload["service"],
+        metric=payload["metric"],
+        value=payload["value"],
+        unit=payload.get("unit", ""),
+        dimensions=payload.get("dimensions", {}),
+    )
+
+
+@classmethod
+def _change_event_from_dict(cls, payload: dict[str, Any]) -> "ChangeEvent":
+    return cls(
+        timestamp=_parse_datetime(payload["timestamp"]),
+        step=payload["step"],
+        service=payload["service"],
+        event_type=payload["event_type"],
+        description=payload["description"],
+    )
+
+
+@classmethod
+def _anomaly_from_dict(cls, payload: dict[str, Any]) -> "Anomaly":
+    return cls(
+        timestamp=_parse_datetime(payload["timestamp"]),
+        step=payload["step"],
+        service=payload["service"],
+        metric=payload["metric"],
+        observed=payload["observed"],
+        baseline=payload["baseline"],
+        deviation_ratio=payload["deviation_ratio"],
+        severity=payload["severity"],
+        confidence=payload["confidence"],
+        explanation=payload["explanation"],
+    )
+
+
+@classmethod
+def _incident_from_dict(cls, payload: dict[str, Any]) -> "Incident":
+    return cls(
+        incident_id=payload["incident_id"],
+        opened_at=_parse_datetime(payload["opened_at"]),
+        services=payload["services"],
+        root_cause_candidates=payload["root_cause_candidates"],
+        severity=payload["severity"],
+        trigger_event=payload.get("trigger_event"),
+        anomaly_count=payload["anomaly_count"],
+        summary=payload["summary"],
+    )
+
+
+@classmethod
+def _forecast_from_dict(cls, payload: dict[str, Any]) -> "Forecast":
+    return cls(
+        service=payload["service"],
+        horizon_minutes=payload["horizon_minutes"],
+        projected_request_rate=payload["projected_request_rate"],
+        projected_p95_latency_ms=payload["projected_p95_latency_ms"],
+        projected_queue_depth=payload["projected_queue_depth"],
+        risk_level=payload["risk_level"],
+        rationale=payload["rationale"],
+    )
+
+
+@classmethod
+def _recommendation_from_dict(cls, payload: dict[str, Any]) -> "Recommendation":
+    return cls(
+        action=payload["action"],
+        target_service=payload["target_service"],
+        confidence=payload["confidence"],
+        rationale=payload["rationale"],
+        projected_cost_delta_pct=payload["projected_cost_delta_pct"],
+        projected_p95_delta_ms=payload["projected_p95_delta_ms"],
+        expected_risk_change=payload["expected_risk_change"],
+        trigger_incident_id=payload["trigger_incident_id"],
+    )
+
+
+@classmethod
+def _scenario_metadata_from_dict(cls, payload: dict[str, Any]) -> "ScenarioMetadata":
+    return cls(
+        name=payload["name"],
+        description=payload["description"],
+        root_cause=payload["root_cause"],
+        expected_action=payload["expected_action"],
+        impacted_services=payload["impacted_services"],
+        category=payload.get("category", "systems"),
+    )
+
+
+@classmethod
+def _evaluation_summary_from_dict(cls, payload: dict[str, Any]) -> "EvaluationSummary":
+    return cls(
+        alert_reduction_pct=payload["alert_reduction_pct"],
+        incident_count=payload["incident_count"],
+        anomaly_count=payload["anomaly_count"],
+        top2_root_cause_hit=payload["top2_root_cause_hit"],
+        recommended_action_match=payload["recommended_action_match"],
+        average_cost_delta_pct=payload["average_cost_delta_pct"],
+        average_p95_delta_ms=payload["average_p95_delta_ms"],
+        decision_latency_ms=payload["decision_latency_ms"],
+        baseline_comparisons=payload.get("baseline_comparisons", []),
+    )
+
+
+MetricSample.from_dict = classmethod(_metric_sample_from_dict)
+ChangeEvent.from_dict = classmethod(_change_event_from_dict)
+Anomaly.from_dict = classmethod(_anomaly_from_dict)
+Incident.from_dict = classmethod(_incident_from_dict)
+Forecast.from_dict = classmethod(_forecast_from_dict)
+Recommendation.from_dict = classmethod(_recommendation_from_dict)
+ScenarioMetadata.from_dict = classmethod(_scenario_metadata_from_dict)
+EvaluationSummary.from_dict = classmethod(_evaluation_summary_from_dict)

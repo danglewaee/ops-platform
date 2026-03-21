@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from .pipeline import run_pipeline, run_scenario_matrix
+from .pipeline import run_pipeline, run_pipeline_from_streams, run_scenario_matrix
 from .scenarios import SCENARIOS, list_scenarios
+from .storage import list_saved_runs, load_run_bundle
 
 
 def _report_summary(report):
@@ -73,5 +74,15 @@ def create_app():
     def matrix(seed: int = 7):
         reports = run_scenario_matrix(seed=seed)
         return [_report_summary(report) for report in reports]
+
+    @app.get("/runs")
+    def runs():
+        return list_saved_runs()
+
+    @app.get("/runs/replay")
+    def replay_run(path: str):
+        bundle = load_run_bundle(path)
+        replay = run_pipeline_from_streams(bundle["telemetry"], bundle["events"], bundle["metadata"])
+        return _report_summary(replay)
 
     return app

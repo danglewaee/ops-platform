@@ -47,5 +47,15 @@ def run_pipeline(scenario_name: str, *, seed: int = 7) -> PipelineReport:
     return run_pipeline_from_streams(telemetry, events, metadata)
 
 
+def generate_and_run_pipeline(
+    scenario_name: str,
+    *,
+    seed: int = 7,
+) -> tuple[list[MetricSample], list[ChangeEvent], ScenarioMetadata, PipelineReport]:
+    telemetry, events, metadata = generate_scenario(scenario_name, seed=seed)
+    report = run_pipeline_from_streams(telemetry, events, metadata)
+    return telemetry, events, metadata, report
+
+
 def run_scenario_matrix(*, seed: int = 7) -> list[PipelineReport]:
     return [run_pipeline(name, seed=seed) for name in list_scenarios()]

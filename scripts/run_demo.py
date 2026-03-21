@@ -9,8 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ops_platform.pipeline import run_pipeline, run_scenario_matrix
+from ops_platform.pipeline import generate_and_run_pipeline, run_pipeline, run_scenario_matrix
 from ops_platform.scenarios import list_scenarios
+from ops_platform.storage import save_run_bundle
 
 
 def main() -> int:
@@ -37,6 +38,11 @@ def main() -> int:
         action="store_true",
         help="Print the full JSON report instead of a concise summary.",
     )
+    parser.add_argument(
+        "--save-run",
+        action="store_true",
+        help="Persist the generated telemetry, events, and report to runs/ as a replayable JSON bundle.",
+    )
     args = parser.parse_args()
 
     if args.matrix:
@@ -58,7 +64,12 @@ def main() -> int:
         print(json.dumps(matrix, indent=2, default=str))
         return 0
 
-    report = run_pipeline(args.scenario, seed=args.seed)
+    if args.save_run:
+        telemetry, events, metadata, report = generate_and_run_pipeline(args.scenario, seed=args.seed)
+        saved_path = save_run_bundle(telemetry, events, metadata, report, seed=args.seed)
+    else:
+        report = run_pipeline(args.scenario, seed=args.seed)
+        saved_path = None
     if args.full:
         print(json.dumps(report.to_dict(), indent=2, default=str))
     else:
@@ -88,6 +99,8 @@ def main() -> int:
             ],
             "baselines": report.evaluation.baseline_comparisons,
         }
+        if saved_path:
+            summary["saved_run"] = str(saved_path)
         print(json.dumps(summary, indent=2, default=str))
     return 0
 
