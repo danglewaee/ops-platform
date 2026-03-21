@@ -1,0 +1,39 @@
+step_seconds = 60
+timestamp_format = "%Y-%m-%dT%H:%M:%S"
+default_event_type = "deploy"
+
+[telemetry_fields]
+timestamp = "ts"
+service = "service_name"
+metric = "metric_name"
+value = "metric_value"
+unit = "metric_unit"
+
+[event_fields]
+timestamp = "ts"
+service = "service_name"
+event_type = "kind"
+description = "message"
+
+[telemetry_dimensions]
+cluster = "cluster_name"
+namespace = "namespace"
+
+[metric_aliases]
+http_requests_per_second = "request_rate"
+latency_p95_ms = "p95_latency_ms"
+errors_pct = "error_rate_pct"
+queue_messages = "queue_depth"
+cpu_usage_pct = "cpu_pct"
+
+[service_aliases]
+edge-gateway = "gateway"
+payments-api = "payments"
+async-worker = "worker"
+
+[unit_by_metric]
+request_rate = "req/s"
+p95_latency_ms = "ms"
+error_rate_pct = "%"
+queue_depth = "messages"
+cpu_pct = "%"

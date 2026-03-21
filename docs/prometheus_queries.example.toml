@@ -1,0 +1,39 @@
+base_url = "http://localhost:9090"
+step = "60s"
+timeout_seconds = 30
+service_label = "service"
+
+[queries]
+request_rate = 'sum(rate(http_requests_total{job="app"}[5m])) by (service)'
+p95_latency_ms = 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="app"}[5m])) by (le, service)) * 1000'
+error_rate_pct = '100 * sum(rate(http_requests_total{job="app",status=~"5.."}[5m])) by (service) / clamp_min(sum(rate(http_requests_total{job="app"}[5m])) by (service), 0.001)'
+queue_depth = 'sum(worker_queue_depth{job="app"}) by (service)'
+cpu_pct = '100 * avg(rate(container_cpu_usage_seconds_total{job="app"}[5m])) by (service)'
+
+[service_aliases]
+edge-gateway = "gateway"
+payments-api = "payments"
+async-worker = "worker"
+
+[unit_by_metric]
+request_rate = "req/s"
+p95_latency_ms = "ms"
+error_rate_pct = "%"
+queue_depth = "messages"
+cpu_pct = "%"
+
+[recurring]
+lookback_minutes = 30
+environment = "production"
+source = "prometheus"
+stream_prefix = "prom-prod"
+name_prefix = "prom-prod"
+description = "Recurring Prometheus pull evaluated in shadow mode."
+category = "live"
+evaluate = true
+summary_path = "artifacts/recurring_pull_summary.json"
+
+[retention]
+older_than_days = 7
+keep_latest = 24
+vacuum = true

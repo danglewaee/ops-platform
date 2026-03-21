@@ -82,6 +82,11 @@ def main() -> int:
             "alert_reduction_pct": report.evaluation.alert_reduction_pct,
             "top2_root_cause_hit": report.evaluation.top2_root_cause_hit,
             "recommended_action_match": report.evaluation.recommended_action_match,
+            "evaluation_mode": report.evaluation.evaluation_mode,
+            "latency_protection_pct": report.evaluation.latency_protection_pct,
+            "avoided_overprovisioning_pct": report.evaluation.avoided_overprovisioning_pct,
+            "baseline_win_rate_pct": report.evaluation.baseline_win_rate_pct,
+            "action_stability_pct": report.evaluation.action_stability_pct,
             "recommendations": [
                 {
                     "action": recommendation.action,

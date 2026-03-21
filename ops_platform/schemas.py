@@ -89,11 +89,16 @@ class EvaluationSummary:
     alert_reduction_pct: float
     incident_count: int
     anomaly_count: int
-    top2_root_cause_hit: bool
-    recommended_action_match: bool
+    top2_root_cause_hit: bool | None
+    recommended_action_match: bool | None
     average_cost_delta_pct: float
     average_p95_delta_ms: float
     decision_latency_ms: float
+    evaluation_mode: str = "ground_truth"
+    latency_protection_pct: float = 0.0
+    avoided_overprovisioning_pct: float = 0.0
+    baseline_win_rate_pct: float = 0.0
+    action_stability_pct: float = 100.0
     baseline_comparisons: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -231,6 +236,11 @@ def _evaluation_summary_from_dict(cls, payload: dict[str, Any]) -> "EvaluationSu
         average_cost_delta_pct=payload["average_cost_delta_pct"],
         average_p95_delta_ms=payload["average_p95_delta_ms"],
         decision_latency_ms=payload["decision_latency_ms"],
+        evaluation_mode=payload.get("evaluation_mode", "ground_truth"),
+        latency_protection_pct=payload.get("latency_protection_pct", 0.0),
+        avoided_overprovisioning_pct=payload.get("avoided_overprovisioning_pct", 0.0),
+        baseline_win_rate_pct=payload.get("baseline_win_rate_pct", 0.0),
+        action_stability_pct=payload.get("action_stability_pct", 100.0),
         baseline_comparisons=payload.get("baseline_comparisons", []),
     )
 

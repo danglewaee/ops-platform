@@ -36,6 +36,12 @@ The current prototype has six layers:
 6. `decision_engine`
    - Recommends actions in shadow mode and evaluates them against scenario ground truth.
 
+It now also includes a production-like persistence layer for replayable telemetry streams:
+
+- SQLite-backed stream storage for normalized metrics and change events
+- API endpoints to ingest bundles, inspect stored streams, and evaluate them later in shadow mode
+- richer evaluation metrics such as latency protection, avoided overprovisioning, baseline win rate, and action stability
+
 The current scenario set covers:
 
 - capacity shock (`traffic_spike`)
@@ -122,6 +128,13 @@ Run the deterministic core tests:
 python -m unittest discover -s tests -v
 ```
 
+The test suite now covers:
+
+- deterministic scenario correctness
+- JSON run replay
+- SQLite ingestion and replay
+- shadow-only evaluation when ground truth is unavailable
+
 ## Optional API
 
 The prototype is runnable today with standard Python only. If you want HTTP endpoints later, install the optional API dependencies:
@@ -135,6 +148,139 @@ Then start the API:
 ```powershell
 uvicorn ops_platform.api:create_app --factory --reload
 ```
+
+New API surfaces for production-like flows:
+
+- `POST /ingest/bundle`
+- `POST /ingest/prometheus`
+- `GET /streams`
+- `GET /storage/stats`
+- `POST /storage/prune`
+- `GET /streams/{stream_id}`
+- `GET /streams/{stream_id}/timeline`
+- `POST /streams/{stream_id}/evaluate`
+
+Durable telemetry storage lives at:
+
+- `artifacts\ops_platform.sqlite3`
+
+`GET /streams` now supports lightweight filtering:
+
+- `environment`
+- `source`
+- `created_after`
+- `created_before`
+- `limit`
+
+## Import real data exports
+
+When you have telemetry exports from Prometheus, Grafana, CSV dashboards, or log-derived JSONL, normalize them into the platform with:
+
+```powershell
+python .\scripts\ingest_real_data.py `
+  --stream-id prod-2026-03-21 `
+  --telemetry .\exports\telemetry.csv `
+  --events .\exports\changes.jsonl `
+  --mapping .\docs\real_data_mapping.example.toml `
+  --environment production `
+  --source prometheus-export `
+  --evaluate
+```
+
+Supported file formats:
+
+- telemetry: `csv`, `json`, `jsonl`
+- change events: `csv`, `json`, `jsonl`
+
+The adapter will:
+
+- rename source columns into the platform schema
+- normalize service and metric aliases
+- infer `step` from timestamps when the source export does not include one
+- preserve extra labels like cluster or namespace in metric dimensions
+- persist the normalized stream into SQLite for replay and evaluation
+
+Use `docs\real_data_mapping.example.toml` as the starting mapping config for real exports.
+
+## Import directly from Prometheus
+
+When you have direct Prometheus access, query a time window and persist it as a stream with:
+
+```powershell
+python .\scripts\ingest_prometheus.py `
+  --config .\docs\prometheus_queries.example.toml `
+  --stream-id prom-prod-2026-03-21 `
+  --lookback-minutes 30 `
+  --environment production `
+  --evaluate
+```
+
+The Prometheus adapter will:
+
+- run `query_range` for each configured metric
+- normalize series into `MetricSample`
+- preserve extra Prometheus labels in metric dimensions
+- optionally merge a separate change-event file
+- support relative windows with `--lookback-minutes`
+- persist and evaluate the resulting stream through the same shadow-mode pipeline
+
+Use `docs\prometheus_queries.example.toml` as the starting query config.
+
+## Run the recurring pull workflow
+
+When you want one command that pulls Prometheus, ingests into SQLite, evaluates shadow mode, and prunes old streams, use:
+
+```powershell
+python .\scripts\run_recurring_pull.py `
+  --config .\docs\prometheus_queries.example.toml
+```
+
+The recurring workflow reads these sections from the same Prometheus config:
+
+- `[recurring]` for lookback window, environment, source, stream prefix, evaluation, and summary path
+- `[retention]` for `older_than_days`, `keep_latest`, and `vacuum`
+
+You can still override them at runtime, for example:
+
+```powershell
+python .\scripts\run_recurring_pull.py `
+  --config .\docs\prometheus_queries.example.toml `
+  --lookback-minutes 15 `
+  --environment staging `
+  --db-path .\artifacts\ops_platform.sqlite3
+```
+
+## Inspect and prune storage
+
+Check the current SQLite footprint:
+
+```powershell
+python .\scripts\prune_storage.py --stats-only
+```
+
+Dry-run a retention rule before deleting anything:
+
+```powershell
+python .\scripts\prune_storage.py `
+  --environment production `
+  --source prometheus `
+  --older-than-days 7 `
+  --keep-latest 24 `
+  --dry-run
+```
+
+Apply the retention rule and compact the SQLite file:
+
+```powershell
+python .\scripts\prune_storage.py `
+  --environment production `
+  --source prometheus `
+  --older-than-days 7 `
+  --keep-latest 24 `
+  --vacuum
+```
+
+The retention logic operates at the `stream_id` level, which matches the rolling-window ingestion model used by the file and Prometheus adapters.
 
 ## What "good" looks like next
 

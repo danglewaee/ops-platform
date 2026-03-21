@@ -1,8 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+
+from .prometheus_ingestion import load_prometheus_bundle
 from .pipeline import run_pipeline, run_pipeline_from_streams, run_scenario_matrix
+from .schemas import ChangeEvent, MetricSample, ScenarioMetadata
 from .scenarios import SCENARIOS, list_scenarios
-from .storage import list_saved_runs, load_run_bundle
+from .storage import (
+    get_storage_stats,
+    ingest_stream_bundle,
+    list_ingested_streams,
+    list_saved_runs,
+    load_ingested_stream,
+    load_run_bundle,
+    prune_ingested_streams,
+    save_stream_report,
+)
 
 
 def _report_summary(report):
@@ -19,6 +32,11 @@ def _report_summary(report):
         "top2_root_cause_hit": report.evaluation.top2_root_cause_hit,
         "recommended_action_match": report.evaluation.recommended_action_match,
         "decision_latency_ms": report.evaluation.decision_latency_ms,
+        "evaluation_mode": report.evaluation.evaluation_mode,
+        "latency_protection_pct": report.evaluation.latency_protection_pct,
+        "avoided_overprovisioning_pct": report.evaluation.avoided_overprovisioning_pct,
+        "baseline_win_rate_pct": report.evaluation.baseline_win_rate_pct,
+        "action_stability_pct": report.evaluation.action_stability_pct,
         "recommendation": {
             "action": recommendation.action if recommendation else None,
             "target_service": recommendation.target_service if recommendation else None,
@@ -31,10 +49,72 @@ def _report_summary(report):
 def create_app():
     try:
         from fastapi import FastAPI
+        from pydantic import BaseModel, Field
     except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError(
             "FastAPI is not installed. Run `pip install -e .[api]` inside ops-decision-platform first."
         ) from exc
+
+    class MetricSamplePayload(BaseModel):
+        timestamp: str
+        step: int
+        service: str
+        metric: str
+        value: float
+        unit: str = ""
+        dimensions: dict[str, str] = Field(default_factory=dict)
+
+    class ChangeEventPayload(BaseModel):
+        timestamp: str
+        step: int
+        service: str
+        event_type: str
+        description: str
+
+    class IngestBundlePayload(BaseModel):
+        stream_id: str
+        source: str = "api"
+        environment: str = "production"
+        db_path: str | None = None
+        metadata: dict[str, object] = Field(default_factory=dict)
+        telemetry: list[MetricSamplePayload] = Field(default_factory=list)
+        events: list[ChangeEventPayload] = Field(default_factory=list)
+
+    class StreamEvaluationPayload(BaseModel):
+        name: str | None = None
+        description: str | None = None
+        root_cause: str = ""
+        expected_action: str = ""
+        impacted_services: list[str] = Field(default_factory=list)
+        category: str = "live"
+
+    class PrometheusIngestPayload(BaseModel):
+        config_path: str
+        stream_id: str
+        start: str | None = None
+        end: str | None = None
+        lookback_minutes: int | None = None
+        base_url: str | None = None
+        events_path: str | None = None
+        event_mapping: str | None = None
+        source: str = "prometheus"
+        environment: str = "production"
+        db_path: str | None = None
+        name: str | None = None
+        description: str = "Prometheus telemetry replay evaluated in shadow mode."
+        root_cause: str = ""
+        expected_action: str = ""
+        category: str = "live"
+        evaluate: bool = False
+
+    class StoragePrunePayload(BaseModel):
+        older_than_days: int | None = None
+        keep_latest: int | None = None
+        environment: str | None = None
+        source: str | None = None
+        vacuum: bool = False
+        dry_run: bool = False
+        db_path: str | None = None
 
     app = FastAPI(title="Ops Decision Platform", version="0.1.0")
 
@@ -79,6 +159,168 @@ def create_app():
     def runs():
         return list_saved_runs()
 
+    @app.post("/ingest/bundle")
+    def ingest_bundle(payload: IngestBundlePayload):
+        telemetry = [MetricSample.from_dict(sample.model_dump()) for sample in payload.telemetry]
+        events = [ChangeEvent.from_dict(event.model_dump()) for event in payload.events]
+        ingest_stream_bundle(
+            payload.stream_id,
+            telemetry,
+            events,
+            source=payload.source,
+            environment=payload.environment,
+            metadata=payload.metadata,
+            db_path=payload.db_path,
+        )
+        stream = load_ingested_stream(payload.stream_id, db_path=payload.db_path)
+        return {
+            "stream_id": stream["stream_id"],
+            "environment": stream["environment"],
+            "source": stream["source"],
+            "metric_count": len(stream["telemetry"]),
+            "event_count": len(stream["events"]),
+        }
+
+    @app.post("/ingest/prometheus")
+    def ingest_prometheus(payload: PrometheusIngestPayload):
+        config, telemetry, events, start, end = load_prometheus_bundle(
+            payload.config_path,
+            start=payload.start,
+            end=payload.end,
+            lookback_minutes=payload.lookback_minutes,
+            base_url=payload.base_url,
+            events_path=payload.events_path,
+            event_mapping_path=payload.event_mapping,
+        )
+        services = sorted({sample.service for sample in telemetry})
+        stream_metadata = {
+            "name": payload.name or payload.stream_id,
+            "description": payload.description,
+            "root_cause": payload.root_cause,
+            "expected_action": payload.expected_action,
+            "impacted_services": services,
+            "category": payload.category,
+        }
+        ingest_stream_bundle(
+            payload.stream_id,
+            telemetry,
+            events,
+            source=payload.source,
+            environment=payload.environment,
+            metadata=stream_metadata,
+            db_path=payload.db_path,
+        )
+
+        summary: dict[str, object] = {
+            "stream_id": payload.stream_id,
+            "source": payload.source,
+            "environment": payload.environment,
+            "metric_count": len(telemetry),
+            "event_count": len(events),
+            "services": services,
+            "metrics": sorted({sample.metric for sample in telemetry}),
+            "range": {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "step": config.step,
+            },
+        }
+
+        if payload.evaluate:
+            metadata = ScenarioMetadata(
+                name=stream_metadata["name"],
+                description=stream_metadata["description"],
+                root_cause=stream_metadata["root_cause"],
+                expected_action=stream_metadata["expected_action"],
+                impacted_services=stream_metadata["impacted_services"],
+                category=stream_metadata["category"],
+            )
+            report = run_pipeline_from_streams(telemetry, events, metadata)
+            save_stream_report(payload.stream_id, metadata, report, db_path=payload.db_path)
+            summary["evaluation"] = _report_summary(report)
+
+        return summary
+
+    @app.get("/streams")
+    def streams(
+        environment: str | None = None,
+        source: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        limit: int | None = None,
+        db_path: str | None = None,
+    ):
+        return list_ingested_streams(
+            environment=environment,
+            source=source,
+            created_after=created_after,
+            created_before=created_before,
+            limit=limit,
+            db_path=db_path,
+        )
+
+    @app.get("/storage/stats")
+    def storage_stats(
+        environment: str | None = None,
+        source: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        db_path: str | None = None,
+    ):
+        return get_storage_stats(
+            environment=environment,
+            source=source,
+            created_after=created_after,
+            created_before=created_before,
+            db_path=db_path,
+        )
+
+    @app.post("/storage/prune")
+    def storage_prune(payload: StoragePrunePayload):
+        return prune_ingested_streams(
+            older_than_days=payload.older_than_days,
+            keep_latest=payload.keep_latest,
+            environment=payload.environment,
+            source=payload.source,
+            vacuum=payload.vacuum,
+            dry_run=payload.dry_run,
+            db_path=payload.db_path,
+        )
+
+    @app.get("/streams/{stream_id}")
+    def stream_summary(stream_id: str, db_path: str | None = None):
+        stream = load_ingested_stream(stream_id, db_path=db_path)
+        services = sorted({sample.service for sample in stream["telemetry"]})
+        latest_report = stream["latest_report"]
+        return {
+            "stream_id": stream["stream_id"],
+            "created_at": stream["created_at"],
+            "source": stream["source"],
+            "environment": stream["environment"],
+            "metadata": stream["metadata"],
+            "metric_count": len(stream["telemetry"]),
+            "event_count": len(stream["events"]),
+            "services": services,
+            "latest_report": _report_summary(latest_report["report"]) if latest_report else None,
+        }
+
+    @app.get("/streams/{stream_id}/timeline")
+    def stream_timeline(stream_id: str, db_path: str | None = None):
+        stream = load_ingested_stream(stream_id, db_path=db_path)
+        return {
+            "stream_id": stream["stream_id"],
+            "telemetry": [asdict(sample) for sample in stream["telemetry"]],
+            "events": [asdict(event) for event in stream["events"]],
+        }
+
+    @app.post("/streams/{stream_id}/evaluate")
+    def evaluate_stream(stream_id: str, payload: StreamEvaluationPayload | None = None, db_path: str | None = None):
+        stream = load_ingested_stream(stream_id, db_path=db_path)
+        metadata = _resolve_stream_metadata(stream_id, stream, payload)
+        report = run_pipeline_from_streams(stream["telemetry"], stream["events"], metadata)
+        save_stream_report(stream_id, metadata, report, db_path=db_path)
+        return _report_summary(report)
+
     @app.get("/runs/replay")
     def replay_run(path: str):
         bundle = load_run_bundle(path)
@@ -86,3 +328,34 @@ def create_app():
         return _report_summary(replay)
 
     return app
+
+
+def _resolve_stream_metadata(
+    stream_id: str,
+    stream: dict[str, object],
+    payload,
+) -> ScenarioMetadata:
+    stored_metadata = stream.get("metadata", {}) or {}
+    services = sorted({sample.service for sample in stream["telemetry"]})
+
+    if payload is None:
+        return ScenarioMetadata(
+            name=str(stored_metadata.get("name") or stream_id),
+            description=str(
+                stored_metadata.get("description")
+                or "Persisted telemetry replay evaluated in shadow mode."
+            ),
+            root_cause=str(stored_metadata.get("root_cause") or ""),
+            expected_action=str(stored_metadata.get("expected_action") or ""),
+            impacted_services=list(stored_metadata.get("impacted_services") or services),
+            category=str(stored_metadata.get("category") or "live"),
+        )
+
+    return ScenarioMetadata(
+        name=payload.name or str(stored_metadata.get("name") or stream_id),
+        description=payload.description or "Persisted telemetry replay evaluated in shadow mode.",
+        root_cause=payload.root_cause,
+        expected_action=payload.expected_action,
+        impacted_services=payload.impacted_services or services,
+        category=payload.category,
+    )

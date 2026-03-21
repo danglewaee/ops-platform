@@ -5,6 +5,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+.pip-cache/
+*.egg-info/
 artifacts/serve.out.txt
 artifacts/serve.err.txt
+artifacts/*.sqlite3
 runs/

@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import unittest
-
-from ops_platform.pipeline import generate_and_run_pipeline, run_pipeline, run_pipeline_from_streams, run_scenario_matrix
-from ops_platform.scenarios import SCENARIOS
-from ops_platform.storage import load_run_bundle, save_run_bundle
-from ops_platform.simulator import generate_scenario
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from ops_platform.pipeline import generate_and_run_pipeline, run_pipeline, run_pipeline_from_streams, run_scenario_matrix
+from ops_platform.schemas import ScenarioMetadata
+from ops_platform.scenarios import SCENARIOS
+from ops_platform.simulator import generate_scenario
+from ops_platform.storage import (
+    ingest_stream_bundle,
+    list_ingested_streams,
+    load_ingested_stream,
+    load_run_bundle,
+    save_run_bundle,
+    save_stream_report,
+)
 
 
 class PipelineScenarioTests(unittest.TestCase):
@@ -45,6 +53,54 @@ class PipelineScenarioTests(unittest.TestCase):
             replay = run_pipeline_from_streams(bundle["telemetry"], bundle["events"], bundle["metadata"])
             self.assertEqual(report.recommendations[0].action, replay.recommendations[0].action)
             self.assertEqual(report.incidents[0].root_cause_candidates[:2], replay.incidents[0].root_cause_candidates[:2])
+
+    def test_evaluation_includes_shadow_metrics(self) -> None:
+        report = run_pipeline("traffic_spike", seed=7)
+        baseline_policies = {item["policy"] for item in report.evaluation.baseline_comparisons}
+        self.assertEqual(report.evaluation.evaluation_mode, "ground_truth")
+        self.assertIn("naive_reroute", baseline_policies)
+        self.assertGreater(report.evaluation.latency_protection_pct, 0.0)
+        self.assertGreaterEqual(report.evaluation.baseline_win_rate_pct, 0.0)
+        self.assertEqual(report.evaluation.action_stability_pct, 100.0)
+
+    def test_shadow_only_mode_without_ground_truth(self) -> None:
+        telemetry, events, _ = generate_scenario("traffic_spike", seed=7)
+        metadata = ScenarioMetadata(
+            name="ingested-traffic-spike",
+            description="Persisted stream replay without scenario labels.",
+            root_cause="",
+            expected_action="",
+            impacted_services=["gateway", "worker", "payments"],
+            category="live",
+        )
+        report = run_pipeline_from_streams(telemetry, events, metadata)
+        self.assertEqual(report.evaluation.evaluation_mode, "shadow_only")
+        self.assertIsNone(report.evaluation.top2_root_cause_hit)
+        self.assertIsNone(report.evaluation.recommended_action_match)
+
+    def test_sqlite_ingestion_and_report_round_trip(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "ops_platform.sqlite3"
+            telemetry, events, metadata, report = generate_and_run_pipeline("traffic_spike", seed=7)
+            ingest_stream_bundle(
+                "stream-traffic-spike",
+                telemetry,
+                events,
+                source="test",
+                environment="staging",
+                metadata=metadata,
+                db_path=db_path,
+            )
+            stream = load_ingested_stream("stream-traffic-spike", db_path=db_path)
+            self.assertEqual(len(stream["telemetry"]), len(telemetry))
+            self.assertEqual(len(stream["events"]), len(events))
+            self.assertEqual(stream["environment"], "staging")
+
+            save_stream_report("stream-traffic-spike", metadata, report, db_path=db_path)
+            streams = list_ingested_streams(db_path=db_path)
+            self.assertEqual(len(streams), 1)
+            self.assertEqual(streams[0]["stream_id"], "stream-traffic-spike")
+            self.assertEqual(streams[0]["latest_recommended_action"], report.recommendations[0].action)
 
 
 if __name__ == "__main__":
