@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ops Decision Platform - Shadow Mode</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050607;
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text: #f5efe6;
+      --muted: #a49a8f;
+      --warm: rgba(240, 176, 91, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(57, 87, 153, 0.18), transparent 28rem),
+        radial-gradient(circle at bottom right, rgba(76, 138, 118, 0.14), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    }
+
+    .shell {
+      width: min(1280px, calc(100vw - 64px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    .intro {
+      display: grid;
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: #e1b44d;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(3.2rem, 6vw, 5.4rem);
+      line-height: 0.92;
+      letter-spacing: -0.05em;
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 34rem;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.65;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .summary-card, .scenario-card {
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      backdrop-filter: blur(14px);
+    }
+
+    .summary-card {
+      padding: 20px 22px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .summary-value {
+      font-size: 2.2rem;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .summary-note {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .scenario-card {
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+      min-height: 360px;
+    }
+
+    .scenario-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .scenario-title {
+      margin: 0;
+      font-size: 2.05rem;
+      line-height: 0.98;
+      letter-spacing: -0.05em;
+    }
+
+    .scenario-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+      line-height: 1.5;
+      max-width: 25rem;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 14px 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: grid;
+      gap: 8px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .policy-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .policy-row {
+      display: grid;
+      grid-template-columns: 110px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .policy-row--ours {
+      background: rgba(240, 176, 91, 0.08);
+      border-color: rgba(240, 176, 91, 0.18);
+    }
+
+    .policy-name {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .policy-action {
+      font-size: 0.96rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .policy-delta {
+      color: var(--muted);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+
+    .chart-shell {
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), transparent 35%),
+        rgba(5, 8, 12, 0.78);
+      padding: 16px 16px 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .chart-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .chart-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .chart-service {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .svg-frame {
+      width: 100%;
+      height: 146px;
+      display: block;
+    }
+
+    .footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .caption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .action {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 999px;
+      background: var(--warm);
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 980px) {
+      .summary-grid,
+      .scenario-grid,
+      .metric-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .policy-row {
+        grid-template-columns: 1fr;
+      }
+
+      .shell {
+        width: min(100vw - 32px, 1280px);
+        padding-top: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="intro">
+      <p class="eyebrow">Shadow Mode Evaluation</p>
+      <h1>From noisy signals to safer actions.</h1>
+      <p class="lede">A minimal decision layer for distributed systems: detect, correlate, forecast, recommend.</p>
+    </section>
+    <section class="summary-grid">
+      
+        <article class="summary-card">
+          <div class="summary-label">scenario set</div>
+          <div class="summary-value">4</div>
+          <div class="summary-note">controlled failure cases</div>
+        </article>
+        
+
+        <article class="summary-card">
+          <div class="summary-label">ours</div>
+          <div class="summary-value">4/4</div>
+          <div class="summary-note">expected shadow-mode actions</div>
+        </article>
+        
+
+        <article class="summary-card">
+          <div class="summary-label">threshold</div>
+          <div class="summary-value">1/4</div>
+          <div class="summary-note">reactive threshold policy</div>
+        </article>
+        
+
+        <article class="summary-card">
+          <div class="summary-label">alert reduction</div>
+          <div class="summary-value">97.3%</div>
+          <div class="summary-note">0.007 ms decision latency</div>
+        </article>
+        
+    </section>
+    <section class="scenario-grid">
+      
+      <article class="scenario-card">
+        <div class="scenario-top">
+          <span class="chip">bad deploy</span>
+          <span class="chip">rollback candidate</span>
+        </div>
+        <div>
+          <h2 class="scenario-title">Bad Deploy</h2>
+          <p class="scenario-subtitle">A deploy introduces elevated errors in one service and contaminates downstream signals.</p>
+        </div>
+        <div class="metric-strip">
+          
+        <div class="metric">
+          <div class="metric-label">anomalies</div>
+          <div class="metric-value">41</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">incidents</div>
+          <div class="metric-value">1</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">root cause</div>
+          <div class="metric-value">payments</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">action</div>
+          <div class="metric-value">rollback candidate</div>
+        </div>
+        
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">rollback candidate</div>
+        <div class="policy-delta">Δp95 -28 ms · cost -2%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">error rate</div>
+              <div class="chart-service">payments</div>
+            </div>
+            <div class="chart-label">payments, worker, gateway</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-ff728a" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ffc2cf" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#ffc2cf" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,131.7 35.3,131.6 58.6,131.5 81.9,131.6 105.2,131.8 128.5,131.9 151.8,132.0 175.1,131.8 198.4,131.8 221.7,123.9 245.0,116.2 268.3,108.3 291.7,100.5 315.0,92.7 338.3,85.1 361.6,77.1 384.9,69.2 408.2,61.4 431.5,53.4 454.8,45.5 478.1,37.7 501.4,29.7 524.7,22.0 548.0,14.0 548,132" fill="url(#fill-ff728a)"/>
+        <polyline points="12.0,131.7 35.3,131.6 58.6,131.5 81.9,131.6 105.2,131.8 128.5,131.9 151.8,132.0 175.1,131.8 198.4,131.8 221.7,123.9 245.0,116.2 268.3,108.3 291.7,100.5 315.0,92.7 338.3,85.1 361.6,77.1 384.9,69.2 408.2,61.4 431.5,53.4 454.8,45.5 478.1,37.7 501.4,29.7 524.7,22.0 548.0,14.0" fill="none" stroke="#ff728a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#ff728a" />
+        <text x="548" y="16" fill="#ffc2cf" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">24.5</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            97.6% alert compression · top-2 root cause hit · our action hit
+          </div>
+          <div class="action">rollback candidate</div>
+        </div>
+      </article>
+    
+
+      <article class="scenario-card">
+        <div class="scenario-top">
+          <span class="chip">memory leak</span>
+          <span class="chip">reroute traffic</span>
+        </div>
+        <div>
+          <h2 class="scenario-title">Memory Leak</h2>
+          <p class="scenario-subtitle">One service degrades gradually as memory pressure increases and restarts follow.</p>
+        </div>
+        <div class="metric-strip">
+          
+        <div class="metric">
+          <div class="metric-label">anomalies</div>
+          <div class="metric-value">28</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">incidents</div>
+          <div class="metric-value">1</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">root cause</div>
+          <div class="metric-value">auth</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">action</div>
+          <div class="metric-value">reroute traffic</div>
+        </div>
+        
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">Δp95 -14 ms · cost +3%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">cpu pressure</div>
+              <div class="chart-service">auth</div>
+            </div>
+            <div class="chart-label">auth</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-4fd4b6" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#b8f5e7" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#b8f5e7" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,129.6 35.3,128.8 58.6,127.5 81.9,129.5 105.2,132.0 128.5,128.8 151.8,129.4 175.1,127.2 198.4,117.2 221.7,108.5 245.0,101.2 268.3,95.2 291.7,89.0 315.0,83.9 338.3,77.9 361.6,68.4 384.9,58.0 408.2,50.8 431.5,41.8 454.8,34.1 478.1,28.9 501.4,24.4 524.7,18.5 548.0,14.0 548,132" fill="url(#fill-4fd4b6)"/>
+        <polyline points="12.0,129.6 35.3,128.8 58.6,127.5 81.9,129.5 105.2,132.0 128.5,128.8 151.8,129.4 175.1,127.2 198.4,117.2 221.7,108.5 245.0,101.2 268.3,95.2 291.7,89.0 315.0,83.9 338.3,77.9 361.6,68.4 384.9,58.0 408.2,50.8 431.5,41.8 454.8,34.1 478.1,28.9 501.4,24.4 524.7,18.5 548.0,14.0" fill="none" stroke="#4fd4b6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#4fd4b6" />
+        <text x="548" y="16" fill="#b8f5e7" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">90.1</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            96.4% alert compression · top-2 root cause hit · our action hit
+          </div>
+          <div class="action">reroute traffic</div>
+        </div>
+      </article>
+    
+
+      <article class="scenario-card">
+        <div class="scenario-top">
+          <span class="chip">queue backlog</span>
+          <span class="chip">increase consumers</span>
+        </div>
+        <div>
+          <h2 class="scenario-title">Queue Backlog</h2>
+          <p class="scenario-subtitle">Consumers cannot keep up, queues swell, and p95 latency drifts upward.</p>
+        </div>
+        <div class="metric-strip">
+          
+        <div class="metric">
+          <div class="metric-label">anomalies</div>
+          <div class="metric-value">35</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">incidents</div>
+          <div class="metric-value">1</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">root cause</div>
+          <div class="metric-value">worker</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">action</div>
+          <div class="metric-value">increase consumers</div>
+        </div>
+        
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">increase consumers</div>
+        <div class="policy-delta">Δp95 -22 ms · cost +6%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">queue depth</div>
+              <div class="chart-service">worker</div>
+            </div>
+            <div class="chart-label">worker, payments</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-8b7cff" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#d0c8ff" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#d0c8ff" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,131.7 35.3,131.2 58.6,131.7 81.9,131.7 105.2,131.9 128.5,132.0 151.8,131.6 175.1,130.8 198.4,131.1 221.7,130.8 245.0,130.4 268.3,122.1 291.7,112.9 315.0,104.4 338.3,95.1 361.6,86.8 384.9,78.5 408.2,70.1 431.5,60.5 454.8,51.1 478.1,41.9 501.4,32.5 524.7,23.5 548.0,14.0 548,132" fill="url(#fill-8b7cff)"/>
+        <polyline points="12.0,131.7 35.3,131.2 58.6,131.7 81.9,131.7 105.2,131.9 128.5,132.0 151.8,131.6 175.1,130.8 198.4,131.1 221.7,130.8 245.0,130.4 268.3,122.1 291.7,112.9 315.0,104.4 338.3,95.1 361.6,86.8 384.9,78.5 408.2,70.1 431.5,60.5 454.8,51.1 478.1,41.9 501.4,32.5 524.7,23.5 548.0,14.0" fill="none" stroke="#8b7cff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#8b7cff" />
+        <text x="548" y="16" fill="#d0c8ff" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">114</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            97.1% alert compression · top-2 root cause hit · our action hit
+          </div>
+          <div class="action">increase consumers</div>
+        </div>
+      </article>
+    
+
+      <article class="scenario-card">
+        <div class="scenario-top">
+          <span class="chip">traffic spike</span>
+          <span class="chip">scale out</span>
+        </div>
+        <div>
+          <h2 class="scenario-title">Traffic Spike</h2>
+          <p class="scenario-subtitle">Demand surges at the edge, queues build up, and latency starts rising downstream.</p>
+        </div>
+        <div class="metric-strip">
+          
+        <div class="metric">
+          <div class="metric-label">anomalies</div>
+          <div class="metric-value">55</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">incidents</div>
+          <div class="metric-value">1</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">root cause</div>
+          <div class="metric-value">gateway</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">action</div>
+          <div class="metric-value">scale out</div>
+        </div>
+        
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">Δp95 -25 ms · cost +10%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">edge load</div>
+              <div class="chart-service">gateway</div>
+            </div>
+            <div class="chart-label">gateway, worker, payments</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-5ea8ff" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#9fd1ff" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#9fd1ff" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,132.0 35.3,131.9 58.6,131.6 81.9,131.6 105.2,131.7 128.5,131.5 151.8,131.8 175.1,131.5 198.4,131.6 221.7,131.4 245.0,128.5 268.3,125.2 291.7,121.3 315.0,116.4 338.3,111.2 361.6,104.6 384.9,97.3 408.2,89.2 431.5,81.2 454.8,70.9 478.1,60.1 501.4,45.7 524.7,30.6 548.0,14.0 548,132" fill="url(#fill-5ea8ff)"/>
+        <polyline points="12.0,132.0 35.3,131.9 58.6,131.6 81.9,131.6 105.2,131.7 128.5,131.5 151.8,131.8 175.1,131.5 198.4,131.6 221.7,131.4 245.0,128.5 268.3,125.2 291.7,121.3 315.0,116.4 338.3,111.2 361.6,104.6 384.9,97.3 408.2,89.2 431.5,81.2 454.8,70.9 478.1,60.1 501.4,45.7 524.7,30.6 548.0,14.0" fill="none" stroke="#5ea8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#5ea8ff" />
+        <text x="548" y="16" fill="#9fd1ff" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">11.1k</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            98.2% alert compression · top-2 root cause hit · our action hit
+          </div>
+          <div class="action">scale out</div>
+        </div>
+      </article>
+    
+    </section>
+  </main>
+</body>
+</html>
