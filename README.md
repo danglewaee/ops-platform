@@ -110,17 +110,25 @@ python .\scripts\build_artifacts.py
 
 This writes:
 - `artifacts\summary.json`
+- `artifacts\live_summary.json`
 - `artifacts\dashboard.html`
 
 Serve a live local dashboard without extra dependencies:
 
 ```powershell
-python .\scripts\serve_dashboard.py
+python .\scripts\serve_dashboard.py --db-path .\artifacts\ops_platform.sqlite3
 ```
 
 Then open:
 - `http://127.0.0.1:8008/`
 - `http://127.0.0.1:8008/api/summary`
+- `http://127.0.0.1:8008/api/live-summary`
+
+The local dashboard server supports the same lightweight live filters as the storage layer:
+
+- `limit`
+- `environment`
+- `source`
 
 Run the deterministic core tests:
 

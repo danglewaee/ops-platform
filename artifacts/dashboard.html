@@ -12,12 +12,9 @@
       --text: #f5efe6;
       --muted: #a49a8f;
       --warm: rgba(240, 176, 91, 0.16);
+      --cool: rgba(94, 168, 255, 0.12);
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -28,19 +25,14 @@
       color: var(--text);
       font-family: "Segoe UI", Inter, system-ui, sans-serif;
     }
-
     .shell {
       width: min(1280px, calc(100vw - 64px));
       margin: 0 auto;
       padding: 40px 0 56px;
     }
-
-    .intro {
-      display: grid;
-      gap: 18px;
-      margin-bottom: 28px;
-    }
-
+    .intro, .section-heading { display: grid; gap: 18px; }
+    .intro { margin-bottom: 28px; }
+    .section-block { display: grid; gap: 20px; margin-bottom: 28px; }
     .eyebrow {
       margin: 0;
       color: #e1b44d;
@@ -49,42 +41,24 @@
       letter-spacing: 0.18em;
       text-transform: uppercase;
     }
-
-    h1 {
+    h1, h2 { margin: 0; letter-spacing: -0.05em; }
+    h1 { font-size: clamp(3.2rem, 6vw, 5.4rem); line-height: 0.92; }
+    h2 { font-size: clamp(2rem, 4vw, 2.8rem); line-height: 0.96; }
+    .lede, .section-copy {
       margin: 0;
-      font-size: clamp(3.2rem, 6vw, 5.4rem);
-      line-height: 0.92;
-      letter-spacing: -0.05em;
-    }
-
-    .lede {
-      margin: 0;
-      max-width: 34rem;
+      max-width: 40rem;
       color: var(--muted);
-      font-size: 1.08rem;
+      font-size: 1.02rem;
       line-height: 1.65;
     }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 18px;
-      margin-bottom: 22px;
-    }
-
-    .summary-card, .scenario-card {
+    .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+    .summary-card, .scenario-card, .live-card, .empty-card {
       border: 1px solid var(--panel-border);
       border-radius: 28px;
       background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
       backdrop-filter: blur(14px);
     }
-
-    .summary-card {
-      padding: 20px 22px;
-      display: grid;
-      gap: 10px;
-    }
-
+    .summary-card { padding: 20px 22px; display: grid; gap: 10px; }
     .summary-label {
       color: var(--muted);
       font-size: 0.82rem;
@@ -92,39 +66,17 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
     }
-
-    .summary-value {
-      font-size: 2.2rem;
-      line-height: 1;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
-
-    .summary-note {
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .scenario-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 22px;
-    }
-
-    .scenario-card {
-      padding: 24px;
-      display: grid;
-      gap: 18px;
-      min-height: 360px;
-    }
-
-    .scenario-top {
+    .summary-value { font-size: 2.2rem; line-height: 1; font-weight: 800; letter-spacing: -0.04em; }
+    .summary-note { color: var(--muted); font-size: 0.95rem; }
+    .scenario-grid, .live-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+    .scenario-card, .live-card { padding: 24px; display: grid; gap: 18px; min-height: 360px; }
+    .live-card { background: linear-gradient(180deg, rgba(94,168,255,0.06), rgba(255,255,255,0.015)); }
+    .scenario-top, .live-top, .chart-top, .footer-row, .meta-row {
       display: flex;
-      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
       justify-content: space-between;
-      gap: 16px;
     }
-
     .chip {
       display: inline-flex;
       align-items: center;
@@ -139,28 +91,20 @@
       text-transform: uppercase;
       white-space: nowrap;
     }
-
-    .scenario-title {
+    .chip--live { background: var(--cool); color: #cfe2ff; }
+    .scenario-title, .live-title {
       margin: 0;
       font-size: 2.05rem;
       line-height: 0.98;
       letter-spacing: -0.05em;
     }
-
-    .scenario-subtitle {
+    .scenario-subtitle, .live-subtitle, .meta-note {
       margin: 0;
       color: var(--muted);
       font-size: 0.96rem;
       line-height: 1.5;
-      max-width: 25rem;
     }
-
-    .metric-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-    }
-
+    .metric-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     .metric {
       padding: 14px 14px 16px;
       border-radius: 18px;
@@ -169,7 +113,6 @@
       display: grid;
       gap: 8px;
     }
-
     .metric-label {
       color: var(--muted);
       font-size: 0.76rem;
@@ -177,19 +120,8 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
-
-    .metric-value {
-      font-size: 1.55rem;
-      font-weight: 800;
-      line-height: 1;
-      letter-spacing: -0.04em;
-    }
-
-    .policy-grid {
-      display: grid;
-      gap: 10px;
-    }
-
+    .metric-value { font-size: 1.55rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
+    .policy-grid { display: grid; gap: 10px; }
     .policy-row {
       display: grid;
       grid-template-columns: 110px 1fr auto;
@@ -200,12 +132,7 @@
       background: rgba(255, 255, 255, 0.025);
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
-
-    .policy-row--ours {
-      background: rgba(240, 176, 91, 0.08);
-      border-color: rgba(240, 176, 91, 0.18);
-    }
-
+    .policy-row--ours { background: rgba(240, 176, 91, 0.08); border-color: rgba(240, 176, 91, 0.18); }
     .policy-name {
       color: var(--muted);
       font-size: 0.76rem;
@@ -213,37 +140,16 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
-
-    .policy-action {
-      font-size: 0.96rem;
-      font-weight: 700;
-      text-transform: capitalize;
-    }
-
-    .policy-delta {
-      color: var(--muted);
-      font-size: 0.88rem;
-      white-space: nowrap;
-    }
-
+    .policy-action { font-size: 0.96rem; font-weight: 700; text-transform: capitalize; }
+    .policy-delta { color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
     .chart-shell {
       border-radius: 22px;
       border: 1px solid rgba(255, 255, 255, 0.06);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), transparent 35%),
-        rgba(5, 8, 12, 0.78);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 35%), rgba(5, 8, 12, 0.78);
       padding: 16px 16px 14px;
       display: grid;
       gap: 12px;
     }
-
-    .chart-top {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 14px;
-    }
-
     .chart-label {
       color: var(--muted);
       font-size: 0.82rem;
@@ -251,32 +157,9 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
-
-    .chart-service {
-      font-size: 1.1rem;
-      font-weight: 700;
-    }
-
-    .svg-frame {
-      width: 100%;
-      height: 146px;
-      display: block;
-    }
-
-    .footer-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      flex-wrap: wrap;
-    }
-
-    .caption {
-      color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.5;
-    }
-
+    .chart-service { font-size: 1.1rem; font-weight: 700; }
+    .svg-frame { width: 100%; height: 146px; display: block; }
+    .caption { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
     .action {
       display: inline-flex;
       align-items: center;
@@ -290,22 +173,11 @@
       text-transform: uppercase;
       font-size: 0.82rem;
     }
-
+    .empty-card { padding: 28px; display: grid; gap: 10px; }
     @media (max-width: 980px) {
-      .summary-grid,
-      .scenario-grid,
-      .metric-strip {
-        grid-template-columns: 1fr;
-      }
-
-      .policy-row {
-        grid-template-columns: 1fr;
-      }
-
-      .shell {
-        width: min(100vw - 32px, 1280px);
-        padding-top: 28px;
-      }
+      .summary-grid, .scenario-grid, .live-grid, .metric-strip { grid-template-columns: 1fr; }
+      .policy-row { grid-template-columns: 1fr; }
+      .shell { width: min(100vw - 32px, 1280px); padding-top: 28px; }
     }
   </style>
 </head>
@@ -316,38 +188,384 @@
       <h1>From noisy signals to safer actions.</h1>
       <p class="lede">A minimal decision layer for distributed systems: detect, correlate, forecast, recommend.</p>
     </section>
-    <section class="summary-grid">
+    
+    <section class="section-block">
       
-        <article class="summary-card">
-          <div class="summary-label">scenario set</div>
-          <div class="summary-value">5</div>
-          <div class="summary-note">controlled failure cases</div>
-        </article>
+    <div class="section-heading">
+      <p class="eyebrow">Live Streams</p>
+      <h2>Recurring pulls and the latest shadow evaluations.</h2>
+      <p class="section-copy">These cards are backed by persisted SQLite stream snapshots. They show what the system has ingested recently, what it recommended, and how much signal the evaluation path compressed.</p>
+    </div>
+    
+      <section class="summary-grid">
         
+    <article class="summary-card">
+      <div class="summary-label">persisted streams</div>
+      <div class="summary-value">3</div>
+      <div class="summary-note">SQLite-backed recurring windows</div>
+    </article>
+    
 
-        <article class="summary-card">
-          <div class="summary-label">ours</div>
-          <div class="summary-value">5/5</div>
-          <div class="summary-note">expected shadow-mode actions</div>
-        </article>
-        
+    <article class="summary-card">
+      <div class="summary-label">shadow evals</div>
+      <div class="summary-value">3</div>
+      <div class="summary-note">latest stored shadow-mode reports</div>
+    </article>
+    
 
-        <article class="summary-card">
-          <div class="summary-label">threshold</div>
-          <div class="summary-value">2/5</div>
-          <div class="summary-note">reactive threshold policy</div>
-        </article>
-        
+    <article class="summary-card">
+      <div class="summary-label">latest action</div>
+      <div class="summary-value">increase consumers</div>
+      <div class="summary-note">gateway</div>
+    </article>
+    
 
-        <article class="summary-card">
-          <div class="summary-label">alert reduction</div>
-          <div class="summary-value">93.9%</div>
-          <div class="summary-note">0.007 ms decision latency</div>
-        </article>
+    <article class="summary-card">
+      <div class="summary-label">db size</div>
+      <div class="summary-value">404.0 KB</div>
+      <div class="summary-note">staging / prometheus</div>
+    </article>
+    
+      </section>
+      <section class="live-grid">
         
+      <article class="live-card">
+        <div class="live-top">
+          <span class="chip chip--live">staging</span>
+          <span class="chip">shadow only</span>
+        </div>
+        <div>
+          <h2 class="live-title">smoke-prometheus</h2>
+          <p class="live-subtitle">Prometheus telemetry replay evaluated in shadow mode.</p>
+        </div>
+        <div class="meta-row">
+          <p class="meta-note">smoke-prometheus</p>
+          <p class="meta-note">2026-03-21T16:50:20.304561</p>
+        </div>
+        <div class="metric-strip">
+          
+    <div class="metric">
+      <div class="metric-label">services</div>
+      <div class="metric-value">1</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">10</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">increase consumers</div>
+    </div>
+    
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">increase consumers</div>
+        <div class="policy-delta">dP95 -22 ms | cost +6%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">queue pressure</div>
+              <div class="chart-service">gateway</div>
+            </div>
+            <div class="chart-label">gateway</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-8b7cff" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#d0c8ff" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#d0c8ff" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,132.0 88.6,132.0 165.1,126.1 241.7,126.1 318.3,120.2 394.9,114.3 471.4,73.0 548.0,14.0 548,132" fill="url(#fill-8b7cff)"/>
+        <polyline points="12.0,132.0 88.6,132.0 165.1,126.1 241.7,126.1 318.3,120.2 394.9,114.3 471.4,73.0 548.0,14.0" fill="none" stroke="#8b7cff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#8b7cff" />
+        <text x="548" y="16" fill="#d0c8ff" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">24.0</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            prometheus | baseline win 100.0% | latency protection 100.0% | stability 100.0%
+          </div>
+          <div class="action">increase consumers</div>
+        </div>
+      </article>
+    
+
+      <article class="live-card">
+        <div class="live-top">
+          <span class="chip chip--live">staging</span>
+          <span class="chip">ground truth</span>
+        </div>
+        <div>
+          <h2 class="live-title">traffic_spike</h2>
+          <p class="live-subtitle">Demand surges at the edge, queues build up, and latency starts rising downstream.</p>
+        </div>
+        <div class="meta-row">
+          <p class="meta-note">smoke-file-import</p>
+          <p class="meta-note">2026-03-21T15:50:52.890630</p>
+        </div>
+        <div class="metric-strip">
+          
+    <div class="metric">
+      <div class="metric-label">services</div>
+      <div class="metric-value">6</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">55</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">scale out</div>
+    </div>
+    
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">dP95 -25 ms | cost +10%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">demand pressure</div>
+              <div class="chart-service">gateway</div>
+            </div>
+            <div class="chart-label">gateway, worker, payments</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-5ea8ff" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#9fd1ff" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#9fd1ff" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,132.0 43.5,131.7 75.1,131.8 106.6,131.7 138.1,128.7 169.6,125.4 201.2,121.4 232.7,116.5 264.2,111.4 295.8,104.7 327.3,97.4 358.8,89.4 390.4,81.3 421.9,71.0 453.4,60.2 484.9,45.7 516.5,30.6 548.0,14.0 548,132" fill="url(#fill-5ea8ff)"/>
+        <polyline points="12.0,132.0 43.5,131.7 75.1,131.8 106.6,131.7 138.1,128.7 169.6,125.4 201.2,121.4 232.7,116.5 264.2,111.4 295.8,104.7 327.3,97.4 358.8,89.4 390.4,81.3 421.9,71.0 453.4,60.2 484.9,45.7 516.5,30.6 548.0,14.0" fill="none" stroke="#5ea8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#5ea8ff" />
+        <text x="548" y="16" fill="#9fd1ff" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">11.1k</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            smoke-export | baseline win 100.0% | latency protection 100.0% | stability 100.0%
+          </div>
+          <div class="action">scale out</div>
+        </div>
+      </article>
+    
+
+      <article class="live-card">
+        <div class="live-top">
+          <span class="chip chip--live">staging</span>
+          <span class="chip">ground truth</span>
+        </div>
+        <div>
+          <h2 class="live-title">traffic_spike</h2>
+          <p class="live-subtitle">Demand surges at the edge, queues build up, and latency starts rising downstream.</p>
+        </div>
+        <div class="meta-row">
+          <p class="meta-note">api-direct-smoke</p>
+          <p class="meta-note">2026-03-21T15:29:13.790961</p>
+        </div>
+        <div class="metric-strip">
+          
+    <div class="metric">
+      <div class="metric-label">services</div>
+      <div class="metric-value">6</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">55</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
+
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">scale out</div>
+    </div>
+    
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">dP95 -25 ms | cost +10%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">scale out</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">demand pressure</div>
+              <div class="chart-service">gateway</div>
+            </div>
+            <div class="chart-label">gateway, worker, payments</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-5ea8ff" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#9fd1ff" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#9fd1ff" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,132.0 43.5,131.7 75.1,131.8 106.6,131.7 138.1,128.7 169.6,125.4 201.2,121.4 232.7,116.5 264.2,111.4 295.8,104.7 327.3,97.4 358.8,89.4 390.4,81.3 421.9,71.0 453.4,60.2 484.9,45.7 516.5,30.6 548.0,14.0 548,132" fill="url(#fill-5ea8ff)"/>
+        <polyline points="12.0,132.0 43.5,131.7 75.1,131.8 106.6,131.7 138.1,128.7 169.6,125.4 201.2,121.4 232.7,116.5 264.2,111.4 295.8,104.7 327.3,97.4 358.8,89.4 390.4,81.3 421.9,71.0 453.4,60.2 484.9,45.7 516.5,30.6 548.0,14.0" fill="none" stroke="#5ea8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="14.0" r="5" fill="#5ea8ff" />
+        <text x="548" y="16" fill="#9fd1ff" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">11.1k</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            direct-smoke | baseline win 100.0% | latency protection 100.0% | stability 100.0%
+          </div>
+          <div class="action">scale out</div>
+        </div>
+      </article>
+    
+      </section>
     </section>
-    <section class="scenario-grid">
-      
+    
+    <section class="section-block">
+      <div class="section-heading">
+        <p class="eyebrow">Scenario Matrix</p>
+        <h2>Controlled baselines and failure drills.</h2>
+        <p class="section-copy">Synthetic scenarios still matter because they keep the pipeline explainable and benchmarkable as the live stream layer grows.</p>
+      </div>
+      <section class="summary-grid">
+        
+    <article class="summary-card">
+      <div class="summary-label">scenario set</div>
+      <div class="summary-value">5</div>
+      <div class="summary-note">controlled failure cases</div>
+    </article>
+    
+
+    <article class="summary-card">
+      <div class="summary-label">ours</div>
+      <div class="summary-value">5/5</div>
+      <div class="summary-note">expected shadow-mode actions</div>
+    </article>
+    
+
+    <article class="summary-card">
+      <div class="summary-label">threshold</div>
+      <div class="summary-value">2/5</div>
+      <div class="summary-note">reactive threshold policy</div>
+    </article>
+    
+
+    <article class="summary-card">
+      <div class="summary-label">alert reduction</div>
+      <div class="summary-value">93.9%</div>
+      <div class="summary-note">0.010 ms decision latency</div>
+    </article>
+    
+      </section>
+      <section class="scenario-grid">
+        
       <article class="scenario-card">
         <div class="scenario-top">
           <span class="chip">bad deploy</span>
@@ -359,48 +577,54 @@
         </div>
         <div class="metric-strip">
           
-        <div class="metric">
-          <div class="metric-label">anomalies</div>
-          <div class="metric-value">41</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">41</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">incidents</div>
-          <div class="metric-value">1</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">root cause</div>
-          <div class="metric-value">payments</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">root cause</div>
+      <div class="metric-value">payments</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">action</div>
-          <div class="metric-value">rollback candidate</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">rollback candidate</div>
+    </div>
+    
         </div>
         <div class="policy-grid">
           
       <div class="policy-row policy-row--ours">
         <div class="policy-name">ours</div>
         <div class="policy-action">rollback candidate</div>
-        <div class="policy-delta">Δp95 -28 ms · cost -2%</div>
+        <div class="policy-delta">dP95 -28 ms | cost -2%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">no action</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">threshold</div>
         <div class="policy-action">scale out</div>
-        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
       </div>
     
         </div>
@@ -430,7 +654,7 @@
         </section>
         <div class="footer-row">
           <div class="caption">
-            97.6% alert compression · top-2 root cause hit · our action hit
+            97.6% alert compression | top-2 root cause hit | our action hit
           </div>
           <div class="action">rollback candidate</div>
         </div>
@@ -448,48 +672,54 @@
         </div>
         <div class="metric-strip">
           
-        <div class="metric">
-          <div class="metric-label">anomalies</div>
-          <div class="metric-value">28</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">28</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">incidents</div>
-          <div class="metric-value">1</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">root cause</div>
-          <div class="metric-value">auth</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">root cause</div>
+      <div class="metric-value">auth</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">action</div>
-          <div class="metric-value">reroute traffic</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">reroute traffic</div>
+    </div>
+    
         </div>
         <div class="policy-grid">
           
       <div class="policy-row policy-row--ours">
         <div class="policy-name">ours</div>
         <div class="policy-action">reroute traffic</div>
-        <div class="policy-delta">Δp95 -14 ms · cost +3%</div>
+        <div class="policy-delta">dP95 -14 ms | cost +3%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">no action</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">threshold</div>
         <div class="policy-action">scale out</div>
-        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
       </div>
     
         </div>
@@ -519,7 +749,7 @@
         </section>
         <div class="footer-row">
           <div class="caption">
-            96.4% alert compression · top-2 root cause hit · our action hit
+            96.4% alert compression | top-2 root cause hit | our action hit
           </div>
           <div class="action">reroute traffic</div>
         </div>
@@ -537,48 +767,54 @@
         </div>
         <div class="metric-strip">
           
-        <div class="metric">
-          <div class="metric-label">anomalies</div>
-          <div class="metric-value">35</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">35</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">incidents</div>
-          <div class="metric-value">1</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">root cause</div>
-          <div class="metric-value">worker</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">root cause</div>
+      <div class="metric-value">worker</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">action</div>
-          <div class="metric-value">increase consumers</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">increase consumers</div>
+    </div>
+    
         </div>
         <div class="policy-grid">
           
       <div class="policy-row policy-row--ours">
         <div class="policy-name">ours</div>
         <div class="policy-action">increase consumers</div>
-        <div class="policy-delta">Δp95 -22 ms · cost +6%</div>
+        <div class="policy-delta">dP95 -22 ms | cost +6%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">no action</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">threshold</div>
         <div class="policy-action">scale out</div>
-        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
       </div>
     
         </div>
@@ -608,7 +844,7 @@
         </section>
         <div class="footer-row">
           <div class="caption">
-            97.1% alert compression · top-2 root cause hit · our action hit
+            97.1% alert compression | top-2 root cause hit | our action hit
           </div>
           <div class="action">increase consumers</div>
         </div>
@@ -626,48 +862,54 @@
         </div>
         <div class="metric-strip">
           
-        <div class="metric">
-          <div class="metric-label">anomalies</div>
-          <div class="metric-value">55</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">55</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">incidents</div>
-          <div class="metric-value">1</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">root cause</div>
-          <div class="metric-value">gateway</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">root cause</div>
+      <div class="metric-value">gateway</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">action</div>
-          <div class="metric-value">scale out</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">scale out</div>
+    </div>
+    
         </div>
         <div class="policy-grid">
           
       <div class="policy-row policy-row--ours">
         <div class="policy-name">ours</div>
         <div class="policy-action">scale out</div>
-        <div class="policy-delta">Δp95 -25 ms · cost +10%</div>
+        <div class="policy-delta">dP95 -25 ms | cost +10%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">no action</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +32 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +32 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">threshold</div>
         <div class="policy-action">scale out</div>
-        <div class="policy-delta">Δp95 -12 ms · cost +12%</div>
+        <div class="policy-delta">dP95 -12 ms | cost +12%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
       </div>
     
         </div>
@@ -697,7 +939,7 @@
         </section>
         <div class="footer-row">
           <div class="caption">
-            98.2% alert compression · top-2 root cause hit · our action hit
+            98.2% alert compression | top-2 root cause hit | our action hit
           </div>
           <div class="action">scale out</div>
         </div>
@@ -715,48 +957,54 @@
         </div>
         <div class="metric-strip">
           
-        <div class="metric">
-          <div class="metric-label">anomalies</div>
-          <div class="metric-value">5</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">anomalies</div>
+      <div class="metric-value">5</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">incidents</div>
-          <div class="metric-value">1</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">incidents</div>
+      <div class="metric-value">1</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">root cause</div>
-          <div class="metric-value">gateway</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">root cause</div>
+      <div class="metric-value">gateway</div>
+    </div>
+    
 
-        <div class="metric">
-          <div class="metric-label">action</div>
-          <div class="metric-value">hold steady</div>
-        </div>
-        
+    <div class="metric">
+      <div class="metric-label">action</div>
+      <div class="metric-value">hold steady</div>
+    </div>
+    
         </div>
         <div class="policy-grid">
           
       <div class="policy-row policy-row--ours">
         <div class="policy-name">ours</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 -4 ms · cost 0%</div>
+        <div class="policy-delta">dP95 -4 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">no action</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +18 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +18 ms | cost 0%</div>
       </div>
     
       <div class="policy-row">
         <div class="policy-name">threshold</div>
         <div class="policy-action">hold steady</div>
-        <div class="policy-delta">Δp95 +8 ms · cost 0%</div>
+        <div class="policy-delta">dP95 +8 ms | cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">naive reroute</div>
+        <div class="policy-action">reroute traffic</div>
+        <div class="policy-delta">dP95 -8 ms | cost +6%</div>
       </div>
     
         </div>
@@ -786,12 +1034,13 @@
         </section>
         <div class="footer-row">
           <div class="caption">
-            80.0% alert compression · top-2 root cause hit · our action hit
+            80.0% alert compression | top-2 root cause hit | our action hit
           </div>
           <div class="action">hold steady</div>
         </div>
       </article>
     
+      </section>
     </section>
   </main>
 </body>

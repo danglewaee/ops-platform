@@ -1,0 +1,248 @@
+{
+  "stats": {
+    "db_path": "D:\\CODE\\Personal Website\\ops-decision-platform\\artifacts\\ops_platform.sqlite3",
+    "db_file_size_bytes": 413696,
+    "stream_count": 3,
+    "metric_sample_count": 1480,
+    "event_count": 2,
+    "report_count": 3,
+    "first_stream_at": "2026-03-21T15:29:13.790961",
+    "last_stream_at": "2026-03-21T16:50:20.304561",
+    "filters": {
+      "environment": null,
+      "source": null,
+      "created_after": null,
+      "created_before": null
+    }
+  },
+  "streams": [
+    {
+      "stream_id": "smoke-prometheus",
+      "name": "smoke-prometheus",
+      "description": "Prometheus telemetry replay evaluated in shadow mode.",
+      "created_at": "2026-03-21T16:50:20.304561",
+      "source": "prometheus",
+      "environment": "staging",
+      "service_count": 1,
+      "metric_count": 40,
+      "event_count": 0,
+      "incident_count": 1,
+      "anomaly_count": 10,
+      "evaluation_mode": "shadow_only",
+      "action_stability_pct": 100.0,
+      "baseline_win_rate_pct": 100.0,
+      "latency_protection_pct": 100.0,
+      "root_cause_candidates": [
+        "gateway"
+      ],
+      "recommendation": {
+        "action": "increase_consumers",
+        "target_service": "gateway",
+        "confidence": 0.82,
+        "projected_cost_delta_pct": 6.0,
+        "projected_p95_delta_ms": -22.0
+      },
+      "baseline_comparisons": [
+        {
+          "policy": "no_action",
+          "action": "hold_steady",
+          "target_service": "gateway",
+          "recommended_action_match": null,
+          "average_cost_delta_pct": 0.0,
+          "average_p95_delta_ms": 32.0,
+          "score": -32.0
+        },
+        {
+          "policy": "threshold_autoscaling",
+          "action": "scale_out",
+          "target_service": "gateway",
+          "recommended_action_match": null,
+          "average_cost_delta_pct": 12.0,
+          "average_p95_delta_ms": -12.0,
+          "score": -10.8
+        },
+        {
+          "policy": "naive_reroute",
+          "action": "reroute_traffic",
+          "target_service": "gateway",
+          "recommended_action_match": null,
+          "average_cost_delta_pct": 5.5,
+          "average_p95_delta_ms": -8.0,
+          "score": -4.08
+        }
+      ],
+      "chart_metric": "queue_depth",
+      "chart_service": "gateway",
+      "chart_series": [
+        4.0,
+        4.0,
+        5.0,
+        5.0,
+        6.0,
+        7.0,
+        14.0,
+        24.0
+      ]
+    },
+    {
+      "stream_id": "smoke-file-import",
+      "name": "traffic_spike",
+      "description": "Demand surges at the edge, queues build up, and latency starts rising downstream.",
+      "created_at": "2026-03-21T15:50:52.890630",
+      "source": "smoke-export",
+      "environment": "staging",
+      "service_count": 6,
+      "metric_count": 720,
+      "event_count": 1,
+      "incident_count": 1,
+      "anomaly_count": 55,
+      "evaluation_mode": "ground_truth",
+      "action_stability_pct": 100.0,
+      "baseline_win_rate_pct": 100.0,
+      "latency_protection_pct": 100.0,
+      "root_cause_candidates": [
+        "gateway",
+        "worker",
+        "payments"
+      ],
+      "recommendation": {
+        "action": "scale_out",
+        "target_service": "gateway",
+        "confidence": 0.81,
+        "projected_cost_delta_pct": 9.5,
+        "projected_p95_delta_ms": -25.0
+      },
+      "baseline_comparisons": [
+        {
+          "policy": "no_action",
+          "action": "hold_steady",
+          "target_service": "gateway",
+          "recommended_action_match": false,
+          "average_cost_delta_pct": 0.0,
+          "average_p95_delta_ms": 32.0,
+          "score": -32.0
+        },
+        {
+          "policy": "threshold_autoscaling",
+          "action": "scale_out",
+          "target_service": "gateway",
+          "recommended_action_match": true,
+          "average_cost_delta_pct": 12.0,
+          "average_p95_delta_ms": -12.0,
+          "score": -10.8
+        },
+        {
+          "policy": "naive_reroute",
+          "action": "reroute_traffic",
+          "target_service": "gateway",
+          "recommended_action_match": false,
+          "average_cost_delta_pct": 5.5,
+          "average_p95_delta_ms": -8.0,
+          "score": -4.08
+        }
+      ],
+      "chart_metric": "request_rate",
+      "chart_service": "gateway",
+      "chart_series": [
+        1806.97,
+        1832.54,
+        1819.31,
+        1834.17,
+        2069.27,
+        2331.0,
+        2638.84,
+        3025.22,
+        3429.04,
+        3955.07,
+        4530.33,
+        5167.14,
+        5802.81,
+        6617.39,
+        7468.53,
+        8606.81,
+        9799.2,
+        11106.54
+      ]
+    },
+    {
+      "stream_id": "api-direct-smoke",
+      "name": "traffic_spike",
+      "description": "Demand surges at the edge, queues build up, and latency starts rising downstream.",
+      "created_at": "2026-03-21T15:29:13.790961",
+      "source": "direct-smoke",
+      "environment": "staging",
+      "service_count": 6,
+      "metric_count": 720,
+      "event_count": 1,
+      "incident_count": 1,
+      "anomaly_count": 55,
+      "evaluation_mode": "ground_truth",
+      "action_stability_pct": 100.0,
+      "baseline_win_rate_pct": 100.0,
+      "latency_protection_pct": 100.0,
+      "root_cause_candidates": [
+        "gateway",
+        "worker",
+        "payments"
+      ],
+      "recommendation": {
+        "action": "scale_out",
+        "target_service": "gateway",
+        "confidence": 0.81,
+        "projected_cost_delta_pct": 9.5,
+        "projected_p95_delta_ms": -25.0
+      },
+      "baseline_comparisons": [
+        {
+          "policy": "no_action",
+          "action": "hold_steady",
+          "target_service": "gateway",
+          "recommended_action_match": false,
+          "average_cost_delta_pct": 0.0,
+          "average_p95_delta_ms": 32.0,
+          "score": -32.0
+        },
+        {
+          "policy": "threshold_autoscaling",
+          "action": "scale_out",
+          "target_service": "gateway",
+          "recommended_action_match": true,
+          "average_cost_delta_pct": 12.0,
+          "average_p95_delta_ms": -12.0,
+          "score": -10.8
+        },
+        {
+          "policy": "naive_reroute",
+          "action": "reroute_traffic",
+          "target_service": "gateway",
+          "recommended_action_match": false,
+          "average_cost_delta_pct": 5.5,
+          "average_p95_delta_ms": -8.0,
+          "score": -4.08
+        }
+      ],
+      "chart_metric": "request_rate",
+      "chart_service": "gateway",
+      "chart_series": [
+        1806.97,
+        1832.54,
+        1819.31,
+        1834.17,
+        2069.27,
+        2331.0,
+        2638.84,
+        3025.22,
+        3429.04,
+        3955.07,
+        4530.33,
+        5167.14,
+        5802.81,
+        6617.39,
+        7468.53,
+        8606.81,
+        9799.2,
+        11106.54
+      ]
+    }
+  ]
+}

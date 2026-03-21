@@ -14,7 +14,9 @@ OUTPUT_DIR = ROOT / "artifacts"
 
 def main() -> int:
     summary_path, dashboard_path = write_artifacts(OUTPUT_DIR)
+    live_summary_path = OUTPUT_DIR / "live_summary.json"
     print(f"Wrote {summary_path}")
+    print(f"Wrote {live_summary_path}")
     print(f"Wrote {dashboard_path}")
     return 0
 
