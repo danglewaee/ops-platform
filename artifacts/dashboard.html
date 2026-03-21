@@ -320,28 +320,28 @@
       
         <article class="summary-card">
           <div class="summary-label">scenario set</div>
-          <div class="summary-value">4</div>
+          <div class="summary-value">5</div>
           <div class="summary-note">controlled failure cases</div>
         </article>
         
 
         <article class="summary-card">
           <div class="summary-label">ours</div>
-          <div class="summary-value">4/4</div>
+          <div class="summary-value">5/5</div>
           <div class="summary-note">expected shadow-mode actions</div>
         </article>
         
 
         <article class="summary-card">
           <div class="summary-label">threshold</div>
-          <div class="summary-value">1/4</div>
+          <div class="summary-value">2/5</div>
           <div class="summary-note">reactive threshold policy</div>
         </article>
         
 
         <article class="summary-card">
           <div class="summary-label">alert reduction</div>
-          <div class="summary-value">97.3%</div>
+          <div class="summary-value">93.9%</div>
           <div class="summary-note">0.007 ms decision latency</div>
         </article>
         
@@ -700,6 +700,95 @@
             98.2% alert compression · top-2 root cause hit · our action hit
           </div>
           <div class="action">scale out</div>
+        </div>
+      </article>
+    
+
+      <article class="scenario-card">
+        <div class="scenario-top">
+          <span class="chip">transient noise</span>
+          <span class="chip">hold steady</span>
+        </div>
+        <div>
+          <h2 class="scenario-title">Transient Noise</h2>
+          <p class="scenario-subtitle">A short-lived latency wobble creates local noise, but the system should avoid overreacting.</p>
+        </div>
+        <div class="metric-strip">
+          
+        <div class="metric">
+          <div class="metric-label">anomalies</div>
+          <div class="metric-value">5</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">incidents</div>
+          <div class="metric-value">1</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">root cause</div>
+          <div class="metric-value">gateway</div>
+        </div>
+        
+
+        <div class="metric">
+          <div class="metric-label">action</div>
+          <div class="metric-value">hold steady</div>
+        </div>
+        
+        </div>
+        <div class="policy-grid">
+          
+      <div class="policy-row policy-row--ours">
+        <div class="policy-name">ours</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 -4 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">no action</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +18 ms · cost 0%</div>
+      </div>
+    
+      <div class="policy-row">
+        <div class="policy-name">threshold</div>
+        <div class="policy-action">hold steady</div>
+        <div class="policy-delta">Δp95 +8 ms · cost 0%</div>
+      </div>
+    
+        </div>
+        <section class="chart-shell">
+          <div class="chart-top">
+            <div>
+              <div class="chart-label">latency wobble</div>
+              <div class="chart-service">gateway</div>
+            </div>
+            <div class="chart-label">gateway</div>
+          </div>
+          
+      <svg class="svg-frame" viewBox="0 0 560 146" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fill-f4c35d" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ffe4a1" stop-opacity="0.34"/>
+            <stop offset="100%" stop-color="#ffe4a1" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <line x1="12" y1="14.0" x2="548" y2="14.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="53.3" x2="548" y2="53.3" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="92.7" x2="548" y2="92.7" stroke="rgba(255,255,255,0.07)" stroke-width="1" /><line x1="12" y1="132.0" x2="548" y2="132.0" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        <polygon points="12,132 12.0,121.8 35.3,123.5 58.6,125.9 81.9,120.9 105.2,122.2 128.5,126.7 151.8,129.6 175.1,130.9 198.4,132.0 221.7,96.5 245.0,53.8 268.3,14.0 291.7,37.8 315.0,46.8 338.3,49.1 361.6,47.0 384.9,54.1 408.2,54.7 431.5,54.8 454.8,59.7 478.1,65.0 501.4,69.5 524.7,68.7 548.0,76.0 548,132" fill="url(#fill-f4c35d)"/>
+        <polyline points="12.0,121.8 35.3,123.5 58.6,125.9 81.9,120.9 105.2,122.2 128.5,126.7 151.8,129.6 175.1,130.9 198.4,132.0 221.7,96.5 245.0,53.8 268.3,14.0 291.7,37.8 315.0,46.8 338.3,49.1 361.6,47.0 384.9,54.1 408.2,54.7 431.5,54.8 454.8,59.7 478.1,65.0 501.4,69.5 524.7,68.7 548.0,76.0" fill="none" stroke="#f4c35d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="548.0" cy="76.0" r="5" fill="#f4c35d" />
+        <text x="548" y="16" fill="#ffe4a1" font-size="12" font-family="Segoe UI, sans-serif" text-anchor="end">107</text>
+      </svg>
+    
+        </section>
+        <div class="footer-row">
+          <div class="caption">
+            80.0% alert compression · top-2 root cause hit · our action hit
+          </div>
+          <div class="action">hold steady</div>
         </div>
       </article>
     

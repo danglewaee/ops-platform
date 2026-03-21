@@ -81,6 +81,7 @@ class ScenarioMetadata:
     root_cause: str
     expected_action: str
     impacted_services: list[str]
+    category: str = "systems"
 
 
 @dataclass(slots=True)

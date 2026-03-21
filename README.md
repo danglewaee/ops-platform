@@ -36,6 +36,14 @@ The current prototype has six layers:
 6. `decision_engine`
    - Recommends actions in shadow mode and evaluates them against scenario ground truth.
 
+The current scenario set covers:
+
+- capacity shock (`traffic_spike`)
+- deploy regression (`bad_deploy`)
+- throughput degradation (`queue_backlog`)
+- service degradation (`memory_leak`)
+- transient noise where the right decision is to do nothing (`transient_noise`)
+
 ## Folder structure
 
 ```text
@@ -55,6 +63,7 @@ ops-decision-platform/
     simulator.py
   scripts/
     run_demo.py
+  tests/
   pyproject.toml
 ```
 
@@ -79,6 +88,13 @@ Other available scenarios:
 - `bad_deploy`
 - `queue_backlog`
 - `memory_leak`
+- `transient_noise`
+
+Run the full scenario matrix:
+
+```powershell
+python .\scripts\run_demo.py --matrix
+```
 
 Build the lightweight evaluation dashboard:
 
@@ -99,6 +115,12 @@ python .\scripts\serve_dashboard.py
 Then open:
 - `http://127.0.0.1:8008/`
 - `http://127.0.0.1:8008/api/summary`
+
+Run the deterministic core tests:
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 ## Optional API
 

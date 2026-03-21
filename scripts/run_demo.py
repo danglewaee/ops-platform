@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ops_platform.pipeline import run_pipeline
+from ops_platform.pipeline import run_pipeline, run_scenario_matrix
 from ops_platform.scenarios import list_scenarios
 
 
@@ -20,6 +20,11 @@ def main() -> int:
         default="traffic_spike",
         choices=list_scenarios(),
         help="Scenario to simulate.",
+    )
+    parser.add_argument(
+        "--matrix",
+        action="store_true",
+        help="Run every scenario and print a concise matrix instead of a single scenario report.",
     )
     parser.add_argument(
         "--seed",
@@ -33,6 +38,25 @@ def main() -> int:
         help="Print the full JSON report instead of a concise summary.",
     )
     args = parser.parse_args()
+
+    if args.matrix:
+        reports = run_scenario_matrix(seed=args.seed)
+        matrix = [
+            {
+                "scenario": report.metadata.name,
+                "category": report.metadata.category,
+                "root_cause": report.metadata.root_cause,
+                "expected_action": report.metadata.expected_action,
+                "recommended_action": report.recommendations[0].action if report.recommendations else None,
+                "top2_root_cause_hit": report.evaluation.top2_root_cause_hit,
+                "recommended_action_match": report.evaluation.recommended_action_match,
+                "alert_reduction_pct": report.evaluation.alert_reduction_pct,
+                "decision_latency_ms": report.evaluation.decision_latency_ms,
+            }
+            for report in reports
+        ]
+        print(json.dumps(matrix, indent=2, default=str))
+        return 0
 
     report = run_pipeline(args.scenario, seed=args.seed)
     if args.full:

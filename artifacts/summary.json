@@ -9,7 +9,7 @@
     "alert_reduction_pct": 97.56,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.006,
+    "decision_latency_ms": 0.007,
     "root_cause_candidates": [
       "payments",
       "worker",
@@ -145,7 +145,7 @@
     "alert_reduction_pct": 97.14,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.006,
+    "decision_latency_ms": 0.007,
     "root_cause_candidates": [
       "worker",
       "payments"
@@ -270,6 +270,73 @@
       8606.81,
       9799.2,
       11106.54
+    ]
+  },
+  {
+    "scenario": "transient_noise",
+    "description": "A short-lived latency wobble creates local noise, but the system should avoid overreacting.",
+    "root_cause": "gateway",
+    "expected_action": "hold_steady",
+    "incident_count": 1,
+    "anomaly_count": 5,
+    "alert_reduction_pct": 80.0,
+    "top2_root_cause_hit": true,
+    "recommended_action_match": true,
+    "decision_latency_ms": 0.005,
+    "root_cause_candidates": [
+      "gateway"
+    ],
+    "recommendation": {
+      "action": "hold_steady",
+      "target_service": "gateway",
+      "confidence": 0.63,
+      "projected_cost_delta_pct": 0.0,
+      "projected_p95_delta_ms": -4.0
+    },
+    "baseline_comparisons": [
+      {
+        "policy": "no_action",
+        "action": "hold_steady",
+        "target_service": "gateway",
+        "recommended_action_match": true,
+        "average_cost_delta_pct": 0.0,
+        "average_p95_delta_ms": 18.0
+      },
+      {
+        "policy": "threshold_autoscaling",
+        "action": "hold_steady",
+        "target_service": "gateway",
+        "recommended_action_match": true,
+        "average_cost_delta_pct": 0.0,
+        "average_p95_delta_ms": 8.0
+      }
+    ],
+    "chart_metric": "p95_latency_ms",
+    "chart_series": [
+      93.67,
+      93.19,
+      92.5,
+      93.92,
+      93.54,
+      92.27,
+      91.46,
+      91.08,
+      90.78,
+      100.8,
+      112.86,
+      124.09,
+      117.36,
+      114.84,
+      114.19,
+      114.77,
+      112.77,
+      112.61,
+      112.58,
+      111.18,
+      109.68,
+      108.43,
+      108.65,
+      106.58
     ]
   }
 ]

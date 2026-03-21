@@ -111,6 +111,25 @@ def _apply_scenario_effects(
         if step == 8:
             events.append(ChangeEvent(timestamp, step, "auth", "degradation", "Auth service begins degrading under memory pressure"))
 
+    if scenario_name == "transient_noise":
+        if step in {9, 10, 11}:
+            state["gateway"]["p95_latency_ms"] *= 1.11
+            state["gateway"]["error_rate_pct"] += 0.08
+            state["gateway"]["queue_depth"] += 1.1
+        if step in {12, 13}:
+            state["gateway"]["p95_latency_ms"] *= 0.96
+            state["gateway"]["queue_depth"] = max(0.0, state["gateway"]["queue_depth"] - 0.7)
+        if step == 9:
+            events.append(
+                ChangeEvent(
+                    timestamp,
+                    step,
+                    "gateway",
+                    "transient_burst",
+                    "Short-lived ingress jitter creates a local latency burst without sustained demand growth",
+                )
+            )
+
 
 def latest_metric_view(samples: list[MetricSample]) -> dict[str, dict[str, float]]:
     latest: dict[str, dict[str, float]] = defaultdict(dict)
@@ -138,4 +157,3 @@ def _metric_unit(metric: str) -> str:
         "queue_depth": "messages",
         "cpu_pct": "%",
     }[metric]
-

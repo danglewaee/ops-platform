@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-from .decision_engine import build_baseline_recommendations, evaluate_recommendations, recommend_actions
+from .decision_engine import (
+    build_baseline_recommendations,
+    evaluate_recommendations,
+    recommend_actions,
+)
 from .detection import detect_anomalies
 from .forecasting import forecast_services
 from .incident_engine import correlate_incidents
-from .schemas import PipelineReport
+from .schemas import ChangeEvent, MetricSample, PipelineReport, ScenarioMetadata
+from .scenarios import list_scenarios
 from .simulator import generate_scenario
 
 
-def run_pipeline(scenario_name: str, *, seed: int = 7) -> PipelineReport:
-    telemetry, events, metadata = generate_scenario(scenario_name, seed=seed)
+def run_pipeline_from_streams(
+    telemetry: list[MetricSample],
+    events: list[ChangeEvent],
+    metadata: ScenarioMetadata,
+) -> PipelineReport:
     anomalies = detect_anomalies(telemetry)
     incidents = correlate_incidents(anomalies, events)
     forecasts = forecast_services(telemetry, incidents)
@@ -32,3 +40,12 @@ def run_pipeline(scenario_name: str, *, seed: int = 7) -> PipelineReport:
         recommendations=recommendations,
         evaluation=evaluation,
     )
+
+
+def run_pipeline(scenario_name: str, *, seed: int = 7) -> PipelineReport:
+    telemetry, events, metadata = generate_scenario(scenario_name, seed=seed)
+    return run_pipeline_from_streams(telemetry, events, metadata)
+
+
+def run_scenario_matrix(*, seed: int = 7) -> list[PipelineReport]:
+    return [run_pipeline(name, seed=seed) for name in list_scenarios()]

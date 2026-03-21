@@ -34,6 +34,12 @@ SCENARIO_VISUALS = {
         "color": "#4fd4b6",
         "accent": "#b8f5e7",
     },
+    "transient_noise": {
+        "metric": "p95_latency_ms",
+        "label": "latency wobble",
+        "color": "#f4c35d",
+        "accent": "#ffe4a1",
+    },
 }
 
 
