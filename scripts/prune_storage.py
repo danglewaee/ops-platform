@@ -13,8 +13,8 @@ from ops_platform.storage import get_storage_stats, prune_ingested_streams
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Inspect and prune persisted SQLite telemetry streams.")
-    parser.add_argument("--db-path", help="Optional override for the SQLite database path.")
+    parser = argparse.ArgumentParser(description="Inspect and prune persisted telemetry streams.")
+    parser.add_argument("--db-path", help="SQLite file path or Timescale/PostgreSQL DSN.")
     parser.add_argument("--environment", help="Only include streams from this environment.")
     parser.add_argument("--source", help="Only include streams from this source.")
     parser.add_argument("--created-after", help="Only include streams created at or after this ISO-8601 timestamp.")

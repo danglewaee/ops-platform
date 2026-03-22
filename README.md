@@ -63,11 +63,15 @@ ops-decision-platform/
     detection.py
     forecasting.py
     incident_engine.py
+    planner.py
     pipeline.py
     scenarios.py
     schemas.py
     simulator.py
+    telemetry.py
+    timescale_storage.py
   scripts/
+    init_timescale.py
     run_demo.py
   tests/
   pyproject.toml
@@ -142,6 +146,7 @@ The test suite now covers:
 - JSON run replay
 - SQLite ingestion and replay
 - shadow-only evaluation when ground truth is unavailable
+- planner constraints and recurring observability config
 
 ## Optional API
 
@@ -150,6 +155,20 @@ The prototype is runnable today with standard Python only. If you want HTTP endp
 ```powershell
 pip install -e .[api]
 ```
+
+Optional upgrade extras:
+
+```powershell
+pip install -e .[observability]
+pip install -e .[planner]
+pip install -e .[timeseries]
+pip install -e .[full]
+```
+
+- `observability` adds OpenTelemetry tracing support.
+- `planner` adds the optional OR-Tools CP-SAT decision planner.
+- `timeseries` adds the optional TimescaleDB/PostgreSQL backend via `psycopg`.
+- `full` installs API, OpenTelemetry, OR-Tools, and TimescaleDB support together.
 
 Then start the API:
 
@@ -171,6 +190,11 @@ New API surfaces for production-like flows:
 Durable telemetry storage lives at:
 
 - `artifacts\ops_platform.sqlite3`
+
+Every `db_path` argument in the API and CLI can also accept a Timescale/PostgreSQL DSN such as:
+
+- `postgresql://user:password@host:5432/ops_platform`
+- `timescaledb://user:password@host:5432/ops_platform`
 
 `GET /streams` now supports lightweight filtering:
 
@@ -234,6 +258,28 @@ The Prometheus adapter will:
 
 Use `docs\prometheus_queries.example.toml` as the starting query config.
 
+## Use TimescaleDB Instead Of SQLite
+
+If you want the persistence layer to look more production-like, initialize a TimescaleDB backend with:
+
+```powershell
+python .\scripts\init_timescale.py `
+  --db-url postgresql://user:password@host:5432/ops_platform `
+  --metric-retention-days 30 `
+  --event-retention-days 14 `
+  --compress-after-days 7 `
+  --create-metric-rollup
+```
+
+This script will:
+
+- create the core tables in PostgreSQL
+- convert `metric_samples` and `change_events` into Timescale hypertables
+- optionally add retention and compression policies
+- optionally create a continuous aggregate over the metrics stream
+
+Once initialized, you can point the existing ingestion and recurring workflows at the same backend by passing the DSN through `--db-path`.
+
 ## Run the recurring pull workflow
 
 When you want one command that pulls Prometheus, ingests into SQLite, evaluates shadow mode, and prunes old streams, use:
@@ -246,6 +292,8 @@ python .\scripts\run_recurring_pull.py `
 The recurring workflow reads these sections from the same Prometheus config:
 
 - `[recurring]` for lookback window, environment, source, stream prefix, evaluation, and summary path
+- `[decision]` for planner constraints such as cost budgets and allowed action types
+- `[observability]` for OpenTelemetry tracing toggles and OTLP endpoint
 - `[retention]` for `older_than_days`, `keep_latest`, and `vacuum`
 
 You can still override them at runtime, for example:
@@ -255,8 +303,18 @@ python .\scripts\run_recurring_pull.py `
   --config .\docs\prometheus_queries.example.toml `
   --lookback-minutes 15 `
   --environment staging `
-  --db-path .\artifacts\ops_platform.sqlite3
+  --planner-mode cp_sat `
+  --max-total-cost-delta-pct 12 `
+  --enable-tracing `
+  --otlp-endpoint http://localhost:4318/v1/traces `
+  --db-path postgresql://user:password@host:5432/ops_platform
 ```
+
+The recurring summary now includes:
+
+- the planner actually used (`heuristic` or `cp_sat`)
+- the trace id when OpenTelemetry is enabled and available
+- whether tracing was configured successfully for the run
 
 ## Inspect and prune storage
 

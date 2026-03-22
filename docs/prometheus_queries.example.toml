@@ -31,7 +31,21 @@ name_prefix = "prom-prod"
 description = "Recurring Prometheus pull evaluated in shadow mode."
 category = "live"
 evaluate = true
+planner_mode = "heuristic"
 summary_path = "artifacts/recurring_pull_summary.json"
+
+[decision]
+max_total_cost_delta_pct = 12.0
+max_cost_delta_pct_per_action = 10.0
+allow_reroute_traffic = true
+allow_scale_out = true
+allow_increase_consumers = true
+allow_rollback_candidate = true
+
+[observability]
+enable_tracing = false
+service_name = "ops-decision-platform-recurring"
+otlp_endpoint = "http://localhost:4318/v1/traces"
 
 [retention]
 older_than_days = 7

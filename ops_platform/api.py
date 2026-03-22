@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import os
 
 from .prometheus_ingestion import load_prometheus_bundle
 from .pipeline import run_pipeline, run_pipeline_from_streams, run_scenario_matrix
-from .schemas import ChangeEvent, MetricSample, ScenarioMetadata
+from .schemas import ChangeEvent, DecisionConstraints, MetricSample, ScenarioMetadata
 from .scenarios import SCENARIOS, list_scenarios
 from .storage import (
     get_storage_stats,
@@ -16,6 +17,7 @@ from .storage import (
     prune_ingested_streams,
     save_stream_report,
 )
+from .telemetry import configure_tracing
 
 
 def _report_summary(report):
@@ -33,6 +35,8 @@ def _report_summary(report):
         "recommended_action_match": report.evaluation.recommended_action_match,
         "decision_latency_ms": report.evaluation.decision_latency_ms,
         "evaluation_mode": report.evaluation.evaluation_mode,
+        "planner_mode": report.evaluation.planner_mode,
+        "trace_id": report.evaluation.trace_id,
         "latency_protection_pct": report.evaluation.latency_protection_pct,
         "avoided_overprovisioning_pct": report.evaluation.avoided_overprovisioning_pct,
         "baseline_win_rate_pct": report.evaluation.baseline_win_rate_pct,
@@ -87,6 +91,15 @@ def create_app():
         expected_action: str = ""
         impacted_services: list[str] = Field(default_factory=list)
         category: str = "live"
+        planner_mode: str = "heuristic"
+        max_total_cost_delta_pct: float | None = None
+        max_cost_delta_pct_per_action: float | None = None
+        max_allowed_p95_delta_ms: float | None = None
+        allow_hold_steady: bool = True
+        allow_reroute_traffic: bool = True
+        allow_scale_out: bool = True
+        allow_increase_consumers: bool = True
+        allow_rollback_candidate: bool = True
 
     class PrometheusIngestPayload(BaseModel):
         config_path: str
@@ -106,6 +119,15 @@ def create_app():
         expected_action: str = ""
         category: str = "live"
         evaluate: bool = False
+        planner_mode: str = "heuristic"
+        max_total_cost_delta_pct: float | None = None
+        max_cost_delta_pct_per_action: float | None = None
+        max_allowed_p95_delta_ms: float | None = None
+        allow_hold_steady: bool = True
+        allow_reroute_traffic: bool = True
+        allow_scale_out: bool = True
+        allow_increase_consumers: bool = True
+        allow_rollback_candidate: bool = True
 
     class StoragePrunePayload(BaseModel):
         older_than_days: int | None = None
@@ -115,6 +137,12 @@ def create_app():
         vacuum: bool = False
         dry_run: bool = False
         db_path: str | None = None
+
+    if os.getenv("OPS_PLATFORM_OTEL_ENABLE", "").lower() in {"1", "true", "yes", "on"}:
+        configure_tracing(
+            service_name=os.getenv("OPS_PLATFORM_OTEL_SERVICE_NAME", "ops-decision-platform-api"),
+            otlp_endpoint=os.getenv("OPS_PLATFORM_OTEL_EXPORTER_OTLP_ENDPOINT"),
+        )
 
     app = FastAPI(title="Ops Decision Platform", version="0.1.0")
 
@@ -141,18 +169,26 @@ def create_app():
         ]
 
     @app.get("/simulate/{scenario_name}")
-    def simulate(scenario_name: str, seed: int = 7):
-        report = run_pipeline(scenario_name, seed=seed)
+    def simulate(
+        scenario_name: str,
+        seed: int = 7,
+        planner_mode: str = "heuristic",
+    ):
+        report = run_pipeline(scenario_name, seed=seed, planner_mode=planner_mode)
         return report.to_dict()
 
     @app.get("/simulate/{scenario_name}/summary")
-    def simulate_summary(scenario_name: str, seed: int = 7):
-        report = run_pipeline(scenario_name, seed=seed)
+    def simulate_summary(
+        scenario_name: str,
+        seed: int = 7,
+        planner_mode: str = "heuristic",
+    ):
+        report = run_pipeline(scenario_name, seed=seed, planner_mode=planner_mode)
         return _report_summary(report)
 
     @app.get("/matrix")
-    def matrix(seed: int = 7):
-        reports = run_scenario_matrix(seed=seed)
+    def matrix(seed: int = 7, planner_mode: str = "heuristic"):
+        reports = run_scenario_matrix(seed=seed, planner_mode=planner_mode)
         return [_report_summary(report) for report in reports]
 
     @app.get("/runs")
@@ -235,7 +271,13 @@ def create_app():
                 impacted_services=stream_metadata["impacted_services"],
                 category=stream_metadata["category"],
             )
-            report = run_pipeline_from_streams(telemetry, events, metadata)
+            report = run_pipeline_from_streams(
+                telemetry,
+                events,
+                metadata,
+                planner_mode=getattr(payload, "planner_mode", "heuristic"),
+                decision_constraints=_decision_constraints_from_payload(payload),
+            )
             save_stream_report(payload.stream_id, metadata, report, db_path=payload.db_path)
             summary["evaluation"] = _report_summary(report)
 
@@ -317,7 +359,13 @@ def create_app():
     def evaluate_stream(stream_id: str, payload: StreamEvaluationPayload | None = None, db_path: str | None = None):
         stream = load_ingested_stream(stream_id, db_path=db_path)
         metadata = _resolve_stream_metadata(stream_id, stream, payload)
-        report = run_pipeline_from_streams(stream["telemetry"], stream["events"], metadata)
+        report = run_pipeline_from_streams(
+            stream["telemetry"],
+            stream["events"],
+            metadata,
+            planner_mode=getattr(payload, "planner_mode", "heuristic") if payload else "heuristic",
+            decision_constraints=_decision_constraints_from_payload(payload),
+        )
         save_stream_report(stream_id, metadata, report, db_path=db_path)
         return _report_summary(report)
 
@@ -328,6 +376,41 @@ def create_app():
         return _report_summary(replay)
 
     return app
+
+
+def _decision_constraints_from_payload(payload) -> DecisionConstraints | None:
+    if payload is None:
+        return None
+
+    if all(
+        getattr(payload, field, None) is None
+        for field in (
+            "max_total_cost_delta_pct",
+            "max_cost_delta_pct_per_action",
+            "max_allowed_p95_delta_ms",
+        )
+    ) and all(
+        getattr(payload, field, True)
+        for field in (
+            "allow_hold_steady",
+            "allow_reroute_traffic",
+            "allow_scale_out",
+            "allow_increase_consumers",
+            "allow_rollback_candidate",
+        )
+    ):
+        return None
+
+    return DecisionConstraints(
+        max_total_cost_delta_pct=getattr(payload, "max_total_cost_delta_pct", None),
+        max_cost_delta_pct_per_action=getattr(payload, "max_cost_delta_pct_per_action", None),
+        max_allowed_p95_delta_ms=getattr(payload, "max_allowed_p95_delta_ms", None),
+        allow_hold_steady=getattr(payload, "allow_hold_steady", True),
+        allow_reroute_traffic=getattr(payload, "allow_reroute_traffic", True),
+        allow_scale_out=getattr(payload, "allow_scale_out", True),
+        allow_increase_consumers=getattr(payload, "allow_increase_consumers", True),
+        allow_rollback_candidate=getattr(payload, "allow_rollback_candidate", True),
+    )
 
 
 def _resolve_stream_metadata(

@@ -15,7 +15,26 @@ api = [
   "fastapi>=0.116.0",
   "uvicorn>=0.35.0",
 ]
+observability = [
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+]
+planner = [
+  "ortools",
+]
+timeseries = [
+  "psycopg[binary]",
+]
+full = [
+  "fastapi>=0.116.0",
+  "uvicorn>=0.35.0",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+  "ortools",
+  "psycopg[binary]",
+]
 
 [tool.setuptools.packages.find]
 include = ["ops_platform*"]
-

@@ -152,7 +152,7 @@ def main() -> int:
     parser.add_argument(
         "--db-path",
         default=None,
-        help="SQLite path for persisted live streams. Defaults to artifacts/ops_platform.sqlite3.",
+        help="SQLite path or Timescale/PostgreSQL DSN for persisted live streams. Defaults to artifacts/ops_platform.sqlite3.",
     )
     parser.add_argument(
         "--live-limit",

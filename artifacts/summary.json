@@ -9,7 +9,7 @@
     "alert_reduction_pct": 97.56,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.007,
+    "decision_latency_ms": 0.047,
     "root_cause_candidates": [
       "payments",
       "worker",
@@ -89,7 +89,7 @@
     "alert_reduction_pct": 96.43,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.013,
+    "decision_latency_ms": 0.034,
     "root_cause_candidates": [
       "auth"
     ],
@@ -167,7 +167,7 @@
     "alert_reduction_pct": 97.14,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.009,
+    "decision_latency_ms": 0.034,
     "root_cause_candidates": [
       "worker",
       "payments"
@@ -175,7 +175,7 @@
     "recommendation": {
       "action": "increase_consumers",
       "target_service": "worker",
-      "confidence": 0.82,
+      "confidence": 0.79,
       "projected_cost_delta_pct": 6.0,
       "projected_p95_delta_ms": -22.0
     },
@@ -246,7 +246,7 @@
     "alert_reduction_pct": 98.18,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.011,
+    "decision_latency_ms": 0.037,
     "root_cause_candidates": [
       "gateway",
       "worker",
@@ -326,7 +326,7 @@
     "alert_reduction_pct": 80.0,
     "top2_root_cause_hit": true,
     "recommended_action_match": true,
-    "decision_latency_ms": 0.009,
+    "decision_latency_ms": 0.078,
     "root_cause_candidates": [
       "gateway"
     ],
@@ -335,7 +335,7 @@
       "target_service": "gateway",
       "confidence": 0.63,
       "projected_cost_delta_pct": 0.0,
-      "projected_p95_delta_ms": -4.0
+      "projected_p95_delta_ms": 10.0
     },
     "baseline_comparisons": [
       {

@@ -75,6 +75,18 @@ class Recommendation:
 
 
 @dataclass(slots=True)
+class DecisionConstraints:
+    max_total_cost_delta_pct: float | None = None
+    max_cost_delta_pct_per_action: float | None = None
+    max_allowed_p95_delta_ms: float | None = None
+    allow_hold_steady: bool = True
+    allow_reroute_traffic: bool = True
+    allow_scale_out: bool = True
+    allow_increase_consumers: bool = True
+    allow_rollback_candidate: bool = True
+
+
+@dataclass(slots=True)
 class ScenarioMetadata:
     name: str
     description: str
@@ -99,6 +111,8 @@ class EvaluationSummary:
     avoided_overprovisioning_pct: float = 0.0
     baseline_win_rate_pct: float = 0.0
     action_stability_pct: float = 100.0
+    planner_mode: str = "heuristic"
+    trace_id: str | None = None
     baseline_comparisons: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -226,6 +240,20 @@ def _scenario_metadata_from_dict(cls, payload: dict[str, Any]) -> "ScenarioMetad
 
 
 @classmethod
+def _decision_constraints_from_dict(cls, payload: dict[str, Any]) -> "DecisionConstraints":
+    return cls(
+        max_total_cost_delta_pct=payload.get("max_total_cost_delta_pct"),
+        max_cost_delta_pct_per_action=payload.get("max_cost_delta_pct_per_action"),
+        max_allowed_p95_delta_ms=payload.get("max_allowed_p95_delta_ms"),
+        allow_hold_steady=payload.get("allow_hold_steady", True),
+        allow_reroute_traffic=payload.get("allow_reroute_traffic", True),
+        allow_scale_out=payload.get("allow_scale_out", True),
+        allow_increase_consumers=payload.get("allow_increase_consumers", True),
+        allow_rollback_candidate=payload.get("allow_rollback_candidate", True),
+    )
+
+
+@classmethod
 def _evaluation_summary_from_dict(cls, payload: dict[str, Any]) -> "EvaluationSummary":
     return cls(
         alert_reduction_pct=payload["alert_reduction_pct"],
@@ -241,6 +269,8 @@ def _evaluation_summary_from_dict(cls, payload: dict[str, Any]) -> "EvaluationSu
         avoided_overprovisioning_pct=payload.get("avoided_overprovisioning_pct", 0.0),
         baseline_win_rate_pct=payload.get("baseline_win_rate_pct", 0.0),
         action_stability_pct=payload.get("action_stability_pct", 100.0),
+        planner_mode=payload.get("planner_mode", "heuristic"),
+        trace_id=payload.get("trace_id"),
         baseline_comparisons=payload.get("baseline_comparisons", []),
     )
 
@@ -251,5 +281,6 @@ Anomaly.from_dict = classmethod(_anomaly_from_dict)
 Incident.from_dict = classmethod(_incident_from_dict)
 Forecast.from_dict = classmethod(_forecast_from_dict)
 Recommendation.from_dict = classmethod(_recommendation_from_dict)
+DecisionConstraints.from_dict = classmethod(_decision_constraints_from_dict)
 ScenarioMetadata.from_dict = classmethod(_scenario_metadata_from_dict)
 EvaluationSummary.from_dict = classmethod(_evaluation_summary_from_dict)

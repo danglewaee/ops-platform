@@ -30,12 +30,23 @@ def main() -> int:
     parser.add_argument("--root-cause", help="Optional ground-truth root cause when known.")
     parser.add_argument("--expected-action", help="Optional expected action when known.")
     parser.add_argument("--category", help="Override the stored category.")
-    parser.add_argument("--db-path", help="Optional override for the SQLite database path.")
+    parser.add_argument("--planner-mode", choices=["heuristic", "cp_sat"], help="Planner to use for the decision step.")
+    parser.add_argument("--max-total-cost-delta-pct", type=float, help="Optional total cost budget across chosen actions.")
+    parser.add_argument("--max-cost-delta-pct-per-action", type=float, help="Optional cost cap for any single action.")
+    parser.add_argument("--max-allowed-p95-delta-ms", type=float, help="Reject actions that would exceed this p95 delta.")
+    parser.add_argument("--disable-reroute", action="store_true", help="Disallow reroute_traffic recommendations.")
+    parser.add_argument("--disable-scale-out", action="store_true", help="Disallow scale_out recommendations.")
+    parser.add_argument("--disable-increase-consumers", action="store_true", help="Disallow increase_consumers recommendations.")
+    parser.add_argument("--disable-rollback", action="store_true", help="Disallow rollback_candidate recommendations.")
+    parser.add_argument("--db-path", help="Optional override for the SQLite path or Timescale/PostgreSQL DSN.")
     parser.add_argument("--summary-path", help="Optional path for the run summary JSON.")
     parser.add_argument("--older-than-days", type=int, help="Override retention: delete matching streams older than N days.")
     parser.add_argument("--keep-latest", type=int, help="Override retention: keep only the newest N matching streams.")
     parser.add_argument("--vacuum", action="store_true", help="Override retention: run VACUUM after pruning.")
     parser.add_argument("--skip-evaluate", action="store_true", help="Skip the shadow-mode evaluation step.")
+    parser.add_argument("--enable-tracing", action="store_true", help="Enable OpenTelemetry tracing for the recurring run.")
+    parser.add_argument("--tracing-service-name", help="Override the OpenTelemetry service.name used for recurring runs.")
+    parser.add_argument("--otlp-endpoint", help="Optional OTLP/HTTP trace endpoint, for example http://localhost:4318/v1/traces.")
     args = parser.parse_args()
 
     settings = load_recurring_pull_settings(
@@ -54,11 +65,22 @@ def main() -> int:
         expected_action=args.expected_action,
         category=args.category,
         evaluate=False if args.skip_evaluate else None,
+        planner_mode=args.planner_mode,
+        max_total_cost_delta_pct=args.max_total_cost_delta_pct,
+        max_cost_delta_pct_per_action=args.max_cost_delta_pct_per_action,
+        max_allowed_p95_delta_ms=args.max_allowed_p95_delta_ms,
+        allow_reroute_traffic=False if args.disable_reroute else None,
+        allow_scale_out=False if args.disable_scale_out else None,
+        allow_increase_consumers=False if args.disable_increase_consumers else None,
+        allow_rollback_candidate=False if args.disable_rollback else None,
         db_path=args.db_path,
         summary_path=args.summary_path,
         retention_older_than_days=args.older_than_days,
         retention_keep_latest=args.keep_latest,
         retention_vacuum=True if args.vacuum else None,
+        enable_tracing=True if args.enable_tracing else None,
+        tracing_service_name=args.tracing_service_name,
+        otlp_endpoint=args.otlp_endpoint,
     )
     summary = run_recurring_pull(settings)
     print(json.dumps(summary, indent=2, default=str))

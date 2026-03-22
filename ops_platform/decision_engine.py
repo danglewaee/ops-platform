@@ -2,37 +2,33 @@ from __future__ import annotations
 
 import time
 
-from .schemas import EvaluationSummary, Forecast, Incident, Recommendation, ScenarioMetadata
+from .planner import ActionCandidate, select_recommendations
+from .schemas import DecisionConstraints, EvaluationSummary, Forecast, Incident, Recommendation, ScenarioMetadata
 
 
 def recommend_actions(
     incidents: list[Incident],
     forecasts: list[Forecast],
-) -> tuple[list[Recommendation], float]:
+    *,
+    planner_mode: str = "heuristic",
+    constraints: DecisionConstraints | None = None,
+) -> tuple[list[Recommendation], float, str]:
     started = time.perf_counter()
-    recommendations: list[Recommendation] = []
     forecast_by_service = {forecast.service: forecast for forecast in forecasts}
+    candidates_by_incident: list[list[ActionCandidate]] = []
 
     for incident in incidents:
         target = incident.root_cause_candidates[0] if incident.root_cause_candidates else incident.services[0]
         forecast = forecast_by_service.get(target)
-        action, rationale, cost_delta, latency_delta, risk_change, confidence = _choose_action(incident, forecast)
+        candidates_by_incident.append(_candidate_recommendations(incident, target, forecast))
 
-        recommendations.append(
-            Recommendation(
-                action=action,
-                target_service=target,
-                confidence=confidence,
-                rationale=rationale,
-                projected_cost_delta_pct=cost_delta,
-                projected_p95_delta_ms=latency_delta,
-                expected_risk_change=risk_change,
-                trigger_incident_id=incident.incident_id,
-            )
-        )
-
+    recommendations, actual_planner_mode = select_recommendations(
+        candidates_by_incident,
+        planner_mode=planner_mode,
+        constraints=constraints,
+    )
     latency_ms = (time.perf_counter() - started) * 1000
-    return recommendations, latency_ms
+    return recommendations, latency_ms, actual_planner_mode
 
 
 def evaluate_recommendations(
@@ -42,6 +38,8 @@ def evaluate_recommendations(
     recommendations: list[Recommendation],
     decision_latency_ms: float,
     baseline_recommendations: dict[str, list[Recommendation]] | None = None,
+    planner_mode: str = "heuristic",
+    trace_id: str | None = None,
 ) -> EvaluationSummary:
     baseline_recommendations = baseline_recommendations or {}
     ground_truth_available = bool(metadata.root_cause and metadata.expected_action)
@@ -83,6 +81,8 @@ def evaluate_recommendations(
         avoided_overprovisioning_pct=round(_avoided_overprovisioning_pct(average_cost_delta, threshold_policy), 2),
         baseline_win_rate_pct=round(baseline_win_rate, 2),
         action_stability_pct=round(_action_stability_pct(recommendations), 2),
+        planner_mode=planner_mode,
+        trace_id=trace_id,
         baseline_comparisons=comparisons,
     )
 
@@ -161,6 +161,136 @@ def _choose_action(
         -4.0,
         "avoid unnecessary action churn",
         0.63,
+    )
+
+
+def _candidate_recommendations(
+    incident: Incident,
+    target: str,
+    forecast: Forecast | None,
+) -> list[ActionCandidate]:
+    preferred_action, rationale, cost_delta, latency_delta, risk_change, confidence = _choose_action(incident, forecast)
+    candidates: dict[str, Recommendation] = {
+        preferred_action: Recommendation(
+            action=preferred_action,
+            target_service=target,
+            confidence=confidence,
+            rationale=rationale,
+            projected_cost_delta_pct=cost_delta,
+            projected_p95_delta_ms=latency_delta,
+            expected_risk_change=risk_change,
+            trigger_incident_id=incident.incident_id,
+        ),
+        "hold_steady": _make_hold_action(target, incident, forecast),
+    }
+
+    if incident.trigger_event and "deploy" in incident.trigger_event.lower():
+        candidates["rollback_candidate"] = _make_rollback_action(target, incident)
+
+    if forecast and forecast.risk_level in {"medium", "high"}:
+        candidates["scale_out"] = _make_scale_out_action(target, incident, forecast)
+
+    if forecast and (forecast.projected_queue_depth >= 10 or forecast.risk_level == "high"):
+        candidates["increase_consumers"] = _make_increase_consumers_action(target, incident, forecast)
+
+    if incident.severity in {"high", "critical"} or (forecast and forecast.projected_p95_latency_ms >= 125):
+        candidates["reroute_traffic"] = _make_reroute_action(target, incident, forecast)
+
+    planned_candidates: list[ActionCandidate] = []
+    for action, recommendation in candidates.items():
+        bonus = 100.0 if action == preferred_action else 0.0
+        score = _recommendation_score(recommendation) + _candidate_fit_bonus(action, incident, forecast) + bonus
+        planned_candidates.append(ActionCandidate(recommendation=recommendation, score=round(score, 3)))
+
+    return planned_candidates
+
+
+def _make_hold_action(target: str, incident: Incident, forecast: Forecast | None) -> Recommendation:
+    penalty = 10.0
+    if forecast and forecast.risk_level == "high":
+        penalty = 18.0
+    if forecast and forecast.risk_level == "high" and forecast.projected_p95_latency_ms >= 150:
+        penalty = 32.0
+
+    return Recommendation(
+        action="hold_steady",
+        target_service=target,
+        confidence=0.63,
+        rationale="Waiting is safer when the signal still looks noisy or the intervention budget is constrained.",
+        projected_cost_delta_pct=0.0,
+        projected_p95_delta_ms=penalty,
+        expected_risk_change="defer action",
+        trigger_incident_id=incident.incident_id,
+    )
+
+
+def _make_scale_out_action(target: str, incident: Incident, forecast: Forecast | None) -> Recommendation:
+    latency_delta = -12.0
+    cost_delta = 8.0
+    confidence = 0.72
+    if forecast and forecast.risk_level == "high":
+        latency_delta = -25.0
+        cost_delta = 9.5
+        confidence = 0.81
+
+    return Recommendation(
+        action="scale_out",
+        target_service=target,
+        confidence=confidence,
+        rationale="Capacity can absorb the projected load before latency degrades further.",
+        projected_cost_delta_pct=cost_delta,
+        projected_p95_delta_ms=latency_delta,
+        expected_risk_change="stabilize latency",
+        trigger_incident_id=incident.incident_id,
+    )
+
+
+def _make_increase_consumers_action(target: str, incident: Incident, forecast: Forecast | None) -> Recommendation:
+    latency_delta = -12.0
+    if forecast and forecast.projected_queue_depth >= 18:
+        latency_delta = -22.0
+
+    return Recommendation(
+        action="increase_consumers",
+        target_service=target,
+        confidence=0.79,
+        rationale="Adding workers drains backlog faster than waiting for queue depth to spill into latency.",
+        projected_cost_delta_pct=6.0,
+        projected_p95_delta_ms=latency_delta,
+        expected_risk_change="reduce queue pressure",
+        trigger_incident_id=incident.incident_id,
+    )
+
+
+def _make_reroute_action(target: str, incident: Incident, forecast: Forecast | None) -> Recommendation:
+    latency_delta = -8.0
+    confidence = 0.68
+    if incident.severity in {"high", "critical"} and "auth" in incident.root_cause_candidates:
+        latency_delta = -14.0
+        confidence = 0.76
+
+    return Recommendation(
+        action="reroute_traffic",
+        target_service=target,
+        confidence=confidence,
+        rationale="Rerouting traffic buys time while keeping user-facing paths available.",
+        projected_cost_delta_pct=3.0,
+        projected_p95_delta_ms=latency_delta,
+        expected_risk_change="reduce user impact",
+        trigger_incident_id=incident.incident_id,
+    )
+
+
+def _make_rollback_action(target: str, incident: Incident) -> Recommendation:
+    return Recommendation(
+        action="rollback_candidate",
+        target_service=target,
+        confidence=0.86,
+        rationale="A recent deploy aligns with the incident window, so rollback is the safest intervention candidate.",
+        projected_cost_delta_pct=-2.0,
+        projected_p95_delta_ms=-28.0,
+        expected_risk_change="reduce instability quickly",
+        trigger_incident_id=incident.incident_id,
     )
 
 
@@ -290,6 +420,28 @@ def _policy_score(recommendations: list[Recommendation]) -> float:
         cost_penalty = max(recommendation.projected_cost_delta_pct, 0.0) * 1.25
         score += latency_reward - latency_penalty - cost_penalty
     return round(score / len(recommendations), 3)
+
+
+def _recommendation_score(recommendation: Recommendation) -> float:
+    return _policy_score([recommendation])
+
+
+def _candidate_fit_bonus(
+    action: str,
+    incident: Incident,
+    forecast: Forecast | None,
+) -> float:
+    if action == "rollback_candidate" and incident.trigger_event and "deploy" in incident.trigger_event.lower():
+        return 12.0
+    if action == "reroute_traffic" and incident.severity in {"high", "critical"}:
+        return 6.0
+    if action == "increase_consumers" and forecast and forecast.projected_queue_depth >= 18:
+        return 8.0
+    if action == "scale_out" and forecast and forecast.risk_level == "high":
+        return 7.0
+    if action == "hold_steady" and (not forecast or forecast.risk_level == "low"):
+        return 5.0
+    return 0.0
 
 
 def _latency_protection_pct(

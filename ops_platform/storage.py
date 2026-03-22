@@ -9,6 +9,16 @@ from pathlib import Path
 from typing import Any
 
 from .schemas import ChangeEvent, MetricSample, PipelineReport, ScenarioMetadata
+from .timescale_storage import (
+    compact_timescale_storage,
+    get_storage_stats_timescale,
+    ingest_stream_bundle_timescale,
+    is_timescale_target,
+    list_ingested_streams_timescale,
+    load_ingested_stream_timescale,
+    prune_ingested_streams_timescale,
+    save_stream_report_timescale,
+)
 
 RUNS_DIR = Path(__file__).resolve().parents[1] / "runs"
 SQLITE_DB_PATH = Path(__file__).resolve().parents[1] / "artifacts" / "ops_platform.sqlite3"
@@ -160,7 +170,18 @@ def ingest_stream_bundle(
     environment: str = "production",
     metadata: dict[str, Any] | ScenarioMetadata | None = None,
     db_path: str | Path | None = None,
-) -> Path:
+) -> str | Path:
+    if is_timescale_target(db_path):
+        return ingest_stream_bundle_timescale(
+            stream_id,
+            telemetry,
+            events,
+            source=source,
+            environment=environment,
+            metadata=metadata,
+            db_path=db_path,
+        )
+
     database_path = ensure_sqlite_schema(db_path)
     created_at = datetime.now().isoformat()
     metadata_payload = asdict(metadata) if isinstance(metadata, ScenarioMetadata) else (metadata or {})
@@ -226,6 +247,9 @@ def load_ingested_stream(
     *,
     db_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    if is_timescale_target(db_path):
+        return load_ingested_stream_timescale(stream_id, db_path=db_path)
+
     database_path = ensure_sqlite_schema(db_path)
 
     with closing(sqlite3.connect(database_path)) as connection:
@@ -319,7 +343,10 @@ def save_stream_report(
     report: PipelineReport,
     *,
     db_path: str | Path | None = None,
-) -> Path:
+) -> str | Path:
+    if is_timescale_target(db_path):
+        return save_stream_report_timescale(stream_id, metadata, report, db_path=db_path)
+
     database_path = ensure_sqlite_schema(db_path)
 
     with closing(sqlite3.connect(database_path)) as connection:
@@ -357,6 +384,16 @@ def list_ingested_streams(
     limit: int | None = None,
     db_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
+    if is_timescale_target(db_path):
+        return list_ingested_streams_timescale(
+            environment=environment,
+            source=source,
+            created_after=created_after,
+            created_before=created_before,
+            limit=limit,
+            db_path=db_path,
+        )
+
     database_path = ensure_sqlite_schema(db_path)
     where_clause, params = _build_stream_filters(
         environment=environment,
@@ -440,6 +477,15 @@ def get_storage_stats(
     created_before: str | datetime | None = None,
     db_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    if is_timescale_target(db_path):
+        return get_storage_stats_timescale(
+            environment=environment,
+            source=source,
+            created_after=created_after,
+            created_before=created_before,
+            db_path=db_path,
+        )
+
     database_path = ensure_sqlite_schema(db_path)
     where_clause, params = _build_stream_filters(
         environment=environment,
@@ -518,6 +564,17 @@ def prune_ingested_streams(
     dry_run: bool = False,
     db_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    if is_timescale_target(db_path):
+        return prune_ingested_streams_timescale(
+            older_than_days=older_than_days,
+            keep_latest=keep_latest,
+            environment=environment,
+            source=source,
+            vacuum=vacuum,
+            dry_run=dry_run,
+            db_path=db_path,
+        )
+
     if older_than_days is None and keep_latest is None:
         raise ValueError("Provide older_than_days and/or keep_latest for pruning.")
     if older_than_days is not None and older_than_days < 0:
@@ -586,7 +643,10 @@ def prune_ingested_streams(
 def compact_storage(
     *,
     db_path: str | Path | None = None,
-) -> Path:
+) -> str | Path:
+    if is_timescale_target(db_path):
+        return compact_timescale_storage(db_path=db_path)
+
     database_path = ensure_sqlite_schema(db_path)
     with closing(sqlite3.connect(database_path)) as connection:
         connection.execute("VACUUM")
