@@ -40,13 +40,18 @@ jobs:
 
           payload.update(
             {
+              "OPS_PLATFORM_AUTO_INIT_STORAGE": "false",
               "OPS_PLATFORM_POSTGRES_USER": "ops",
               "OPS_PLATFORM_API_KEYS": "ci-smoke-token",
               "OPS_PLATFORM_POSTGRES_DB": "ops_platform",
               "OPS_PLATFORM_POSTGRES_PASSWORD": "ops-ci",
               "OPS_PLATFORM_RATE_LIMIT_BACKEND": "redis",
               "OPS_PLATFORM_REDIS_URL": "redis://redis:6379/0",
-              "OPS_PLATFORM_ENABLE_TRACING": "true",
+              "OPS_PLATFORM_ENABLE_TRACING": "false",
+              "OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_CREATE_METRIC_ROLLUP": "false",
             }
           )
 

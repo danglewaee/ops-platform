@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import traceback
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -94,6 +95,19 @@ def run_smoke_check(
             summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             summary["summary_path"] = str(summary_path)
         return summary
+    except Exception as exc:
+        summary["status"] = "error"
+        summary["error"] = str(exc)
+        summary["traceback"] = traceback.format_exc()
+        summary["compose_ps"] = capture_compose_output([*compose_command, "ps"])
+        summary["compose_logs"] = capture_compose_output([*compose_command, "logs", "--no-color"])
+        if summary_path is not None:
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            summary["summary_path"] = str(summary_path)
+        print(summary["compose_ps"], file=sys.stderr)
+        print(summary["compose_logs"], file=sys.stderr)
+        raise
     finally:
         if not keep_up:
             subprocess.run([*compose_command, "down", "-v"], cwd=ROOT, check=True)
@@ -140,6 +154,26 @@ def build_compose_base_command(
     if env_file.exists():
         command.extend(["--env-file", str(env_file)])
     return command
+
+
+def capture_compose_output(command: list[str]) -> str:
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    payload: list[str] = []
+    if stdout:
+        payload.append(stdout)
+    if stderr:
+        payload.append(stderr)
+    if not payload:
+        return f"Command exited with code {result.returncode} and produced no output."
+    return "\n".join(payload)
 
 
 def poll_json(url: str, *, headers: dict[str, str] | None = None, timeout_seconds: int = 180) -> dict[str, Any]:
