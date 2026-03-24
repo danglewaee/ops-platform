@@ -40,12 +40,22 @@ jobs:
 
           payload.update(
             {
+              "OPS_PLATFORM_POSTGRES_USER": "ops",
               "OPS_PLATFORM_API_KEYS": "ci-smoke-token",
+              "OPS_PLATFORM_POSTGRES_DB": "ops_platform",
               "OPS_PLATFORM_POSTGRES_PASSWORD": "ops-ci",
               "OPS_PLATFORM_RATE_LIMIT_BACKEND": "redis",
               "OPS_PLATFORM_REDIS_URL": "redis://redis:6379/0",
               "OPS_PLATFORM_ENABLE_TRACING": "true",
             }
+          )
+
+          payload["OPS_PLATFORM_DB_PATH"] = (
+            "postgresql://"
+            f"{payload['OPS_PLATFORM_POSTGRES_USER']}:"
+            f"{payload['OPS_PLATFORM_POSTGRES_PASSWORD']}"
+            "@timescaledb:5432/"
+            f"{payload['OPS_PLATFORM_POSTGRES_DB']}"
           )
 
           env_path.write_text(
