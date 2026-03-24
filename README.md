@@ -67,12 +67,16 @@ ops-decision-platform/
     pipeline.py
     scenarios.py
     schemas.py
+    settings.py
     simulator.py
     telemetry.py
     timescale_storage.py
   scripts/
+    bootstrap_storage.py
     init_timescale.py
+    run_api.py
     run_demo.py
+    smoke_docker_stack.py
   tests/
   pyproject.toml
 ```
@@ -161,19 +165,27 @@ Optional upgrade extras:
 ```powershell
 pip install -e .[observability]
 pip install -e .[planner]
+pip install -e .[security]
 pip install -e .[timeseries]
 pip install -e .[full]
 ```
 
 - `observability` adds OpenTelemetry tracing support.
 - `planner` adds the optional OR-Tools CP-SAT decision planner.
+- `security` adds the optional Redis-backed rate limiter.
 - `timeseries` adds the optional TimescaleDB/PostgreSQL backend via `psycopg`.
-- `full` installs API, OpenTelemetry, OR-Tools, and TimescaleDB support together.
+- `full` installs API, OpenTelemetry, OR-Tools, Redis, and TimescaleDB support together.
 
 Then start the API:
 
 ```powershell
 uvicorn ops_platform.api:create_app --factory --reload
+```
+
+Or run it through the new env-aware wrapper:
+
+```powershell
+python .\scripts\run_api.py
 ```
 
 New API surfaces for production-like flows:
@@ -315,6 +327,80 @@ The recurring summary now includes:
 - the planner actually used (`heuristic` or `cp_sat`)
 - the trace id when OpenTelemetry is enabled and available
 - whether tracing was configured successfully for the run
+
+## Deploy With Docker Compose
+
+The repository now includes a minimal deployment bundle for:
+
+- `api`
+- `timescaledb`
+- `otel-collector`
+- `redis`
+- one-shot `timescale-init`
+
+Start by copying the sample environment file:
+
+```powershell
+Copy-Item .\.env.example .\.env
+```
+
+Then bring the stack up:
+
+```powershell
+docker compose up --build
+```
+
+Or run a one-shot smoke check that brings the stack up, waits for `/ready`, probes the secured endpoints, and tears everything down again:
+
+```powershell
+python .\scripts\smoke_docker_stack.py --env-file .\.env
+```
+
+The repository also includes a GitHub Actions workflow at [.github/workflows/compose-smoke.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/compose-smoke.yml) that runs the same smoke path in CI and uploads the compose logs plus smoke summary as artifacts.
+
+Key runtime settings are read from environment variables:
+
+- `OPS_PLATFORM_DB_PATH`
+- `OPS_PLATFORM_AUTO_INIT_STORAGE`
+- `OPS_PLATFORM_AUTH_ENABLED`
+- `OPS_PLATFORM_API_KEYS`
+- `OPS_PLATFORM_RATE_LIMIT_ENABLED`
+- `OPS_PLATFORM_RATE_LIMIT_BACKEND`
+- `OPS_PLATFORM_RATE_LIMIT_REQUESTS`
+- `OPS_PLATFORM_RATE_LIMIT_WINDOW_SECONDS`
+- `OPS_PLATFORM_REDIS_URL`
+- `OPS_PLATFORM_AUDIT_LOG_ENABLED`
+- `OPS_PLATFORM_DB_RETRY_ATTEMPTS`
+- `OPS_PLATFORM_DB_RETRY_BACKOFF_SECONDS`
+- `OPS_PLATFORM_DB_RETRY_MAX_BACKOFF_SECONDS`
+- `OPS_PLATFORM_ENABLE_TRACING`
+- `OPS_PLATFORM_OTLP_ENDPOINT`
+- `OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS`
+- `OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS`
+- `OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS`
+
+Important endpoints in the containerized stack:
+
+- `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/ready`
+- `http://127.0.0.1:8000/streams`
+- `http://127.0.0.1:8000/audit/events`
+
+When auth is enabled, send:
+
+- `X-API-Key: <your token>`
+- `X-Ops-Actor: <human or service id>`
+
+The API now emits request-edge control headers:
+
+- `X-Request-Id`
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+
+Rate limiting can now run in two modes:
+
+- `memory` for single-instance local runs
+- `redis` for shared counters across multiple API replicas
 
 ## Inspect and prune storage
 

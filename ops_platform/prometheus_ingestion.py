@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .file_ingestion import DEFAULT_UNITS, load_event_file
+from .resilience import RetryPolicy, retry_call
 from .schemas import ChangeEvent, MetricSample
 
 
@@ -24,6 +25,9 @@ class PrometheusIngestionConfig:
     headers: dict[str, str] = field(default_factory=dict)
     service_aliases: dict[str, str] = field(default_factory=dict)
     unit_by_metric: dict[str, str] = field(default_factory=lambda: DEFAULT_UNITS.copy())
+    retry_attempts: int = 3
+    retry_backoff_seconds: float = 0.5
+    retry_max_backoff_seconds: float = 5.0
 
 
 def load_prometheus_config(path: str | Path, *, base_url: str | None = None) -> PrometheusIngestionConfig:
@@ -46,6 +50,9 @@ def load_prometheus_config(path: str | Path, *, base_url: str | None = None) -> 
         headers={str(key): str(value) for key, value in payload.get("headers", {}).items()},
         service_aliases={str(key): str(value) for key, value in payload.get("service_aliases", {}).items()},
         unit_by_metric={**DEFAULT_UNITS, **{str(key): str(value) for key, value in payload.get("unit_by_metric", {}).items()}},
+        retry_attempts=int(payload.get("retry_attempts", 3)),
+        retry_backoff_seconds=float(payload.get("retry_backoff_seconds", 0.5)),
+        retry_max_backoff_seconds=float(payload.get("retry_max_backoff_seconds", 5.0)),
     )
 
 
@@ -180,12 +187,24 @@ def _run_query_range(
         f"{config.base_url}/api/v1/query_range?{params}",
         headers=config.headers,
     )
-    with urlopen(request, timeout=config.timeout_seconds) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    payload = retry_call(
+        lambda: _urlopen_json(request, timeout_seconds=config.timeout_seconds),
+        policy=RetryPolicy(
+            attempts=config.retry_attempts,
+            backoff_seconds=config.retry_backoff_seconds,
+            max_backoff_seconds=config.retry_max_backoff_seconds,
+        ),
+        retry_exceptions=(OSError, TimeoutError),
+    )
 
     if payload.get("status") != "success":
         raise ValueError(f"Prometheus query failed: {payload}")
     return payload
+
+
+def _urlopen_json(request: Request, *, timeout_seconds: int) -> dict[str, Any]:
+    with urlopen(request, timeout=timeout_seconds) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
 def _load_config_payload(path: Path) -> dict[str, Any]:

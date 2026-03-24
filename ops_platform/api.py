@@ -1,20 +1,28 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 import os
+from uuid import uuid4
 
 from .prometheus_ingestion import load_prometheus_bundle
 from .pipeline import run_pipeline, run_pipeline_from_streams, run_scenario_matrix
 from .schemas import ChangeEvent, DecisionConstraints, MetricSample, ScenarioMetadata
 from .scenarios import SCENARIOS, list_scenarios
+from .security import build_rate_limiter
+from .settings import AppSettings, load_app_settings
 from .storage import (
+    check_storage_health,
     get_storage_stats,
     ingest_stream_bundle,
+    initialize_storage,
+    list_audit_events,
     list_ingested_streams,
     list_saved_runs,
     load_ingested_stream,
     load_run_bundle,
     prune_ingested_streams,
+    save_audit_event,
     save_stream_report,
 )
 from .telemetry import configure_tracing
@@ -52,12 +60,15 @@ def _report_summary(report):
 
 def create_app():
     try:
-        from fastapi import FastAPI
+        from fastapi import FastAPI, Request
+        from fastapi.responses import JSONResponse
         from pydantic import BaseModel, Field
     except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError(
             "FastAPI is not installed. Run `pip install -e .[api]` inside ops-decision-platform first."
         ) from exc
+
+    settings = _load_runtime_settings()
 
     class MetricSamplePayload(BaseModel):
         timestamp: str
@@ -138,17 +149,130 @@ def create_app():
         dry_run: bool = False
         db_path: str | None = None
 
-    if os.getenv("OPS_PLATFORM_OTEL_ENABLE", "").lower() in {"1", "true", "yes", "on"}:
+    if settings.enable_tracing or os.getenv("OPS_PLATFORM_OTEL_ENABLE", "").lower() in {"1", "true", "yes", "on"}:
         configure_tracing(
-            service_name=os.getenv("OPS_PLATFORM_OTEL_SERVICE_NAME", "ops-decision-platform-api"),
-            otlp_endpoint=os.getenv("OPS_PLATFORM_OTEL_EXPORTER_OTLP_ENDPOINT"),
+            service_name=settings.otel_service_name,
+            otlp_endpoint=settings.otlp_endpoint or os.getenv("OPS_PLATFORM_OTEL_EXPORTER_OTLP_ENDPOINT"),
         )
 
-    app = FastAPI(title="Ops Decision Platform", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        initialize_app_runtime(app, settings)
+        yield
+
+    app = FastAPI(title="Ops Decision Platform", version="0.1.0", lifespan=lifespan)
+    seed_app_runtime(app, settings)
+
+    @app.middleware("http")
+    async def request_controls(request: Request, call_next):
+        path = request.url.path
+        request_id = request.headers.get("x-request-id") or str(uuid4())
+        actor = _resolve_actor(request, settings)
+        client_ip = request.client.host if request.client else None
+        api_key = request.headers.get(settings.auth_header_name)
+        action = _resolve_audit_action(request.method, path)
+        resource_type, resource_id = _resolve_resource(path)
+        rate_decision = None
+
+        if settings.auth_enabled and not _is_public_path(path):
+            if not api_key or api_key not in settings.api_keys:
+                response = JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+                response.headers["X-Request-Id"] = request_id
+                _write_audit_event(
+                    settings=settings,
+                    actor=actor,
+                    action=action,
+                    method=request.method,
+                    path=path,
+                    status_code=401,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    client_ip=client_ip,
+                    request_id=request_id,
+                    metadata={"outcome": "auth_denied"},
+                )
+                return response
+
+        if settings.rate_limit_enabled and not _is_public_path(path) and app.state.rate_limiter is not None:
+            rate_key = _resolve_rate_limit_key(api_key=api_key, actor=actor, client_ip=client_ip)
+            rate_decision = app.state.rate_limiter.allow(rate_key)
+            if not rate_decision.allowed:
+                response = JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+                response.headers["X-Request-Id"] = request_id
+                response.headers["Retry-After"] = str(
+                    rate_decision.retry_after_seconds or settings.rate_limit_window_seconds
+                )
+                response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
+                response.headers["X-RateLimit-Remaining"] = "0"
+                _write_audit_event(
+                    settings=settings,
+                    actor=actor,
+                    action=action,
+                    method=request.method,
+                    path=path,
+                    status_code=429,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    client_ip=client_ip,
+                    request_id=request_id,
+                    metadata={"outcome": "rate_limited"},
+                )
+                return response
+
+        response = await call_next(request)
+        response.headers.setdefault("X-Request-Id", request_id)
+        if rate_decision is not None:
+            response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
+            response.headers["X-RateLimit-Remaining"] = str(rate_decision.remaining)
+
+        if _should_audit_request(request.method, path, response.status_code):
+            metadata = {}
+            if request.url.query:
+                metadata["query"] = str(request.url.query)
+            if rate_decision is not None:
+                metadata["rate_limit_remaining"] = rate_decision.remaining
+            _write_audit_event(
+                settings=settings,
+                actor=actor,
+                action=action,
+                method=request.method,
+                path=path,
+                status_code=response.status_code,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                client_ip=client_ip,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        return response
 
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/ready")
+    def ready():
+        readiness = dict(app.state.readiness)
+        status_code = 200 if readiness.get("ready") else 503
+        return JSONResponse(status_code=status_code, content=readiness)
+
+    @app.get("/audit/events")
+    def audit_events(
+        limit: int = 100,
+        actor: str | None = None,
+        action: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        db_path: str | None = None,
+    ):
+        return list_audit_events(
+            limit=limit,
+            actor=actor,
+            action=action,
+            created_after=created_after,
+            created_before=created_before,
+            db_path=_resolve_db_path(db_path, settings),
+        )
 
     @app.get("/scenarios")
     def scenarios() -> dict[str, list[str]]:
@@ -206,9 +330,9 @@ def create_app():
             source=payload.source,
             environment=payload.environment,
             metadata=payload.metadata,
-            db_path=payload.db_path,
+            db_path=_resolve_db_path(payload.db_path, settings),
         )
-        stream = load_ingested_stream(payload.stream_id, db_path=payload.db_path)
+        stream = load_ingested_stream(payload.stream_id, db_path=_resolve_db_path(payload.db_path, settings))
         return {
             "stream_id": stream["stream_id"],
             "environment": stream["environment"],
@@ -244,7 +368,7 @@ def create_app():
             source=payload.source,
             environment=payload.environment,
             metadata=stream_metadata,
-            db_path=payload.db_path,
+            db_path=_resolve_db_path(payload.db_path, settings),
         )
 
         summary: dict[str, object] = {
@@ -278,7 +402,12 @@ def create_app():
                 planner_mode=getattr(payload, "planner_mode", "heuristic"),
                 decision_constraints=_decision_constraints_from_payload(payload),
             )
-            save_stream_report(payload.stream_id, metadata, report, db_path=payload.db_path)
+            save_stream_report(
+                payload.stream_id,
+                metadata,
+                report,
+                db_path=_resolve_db_path(payload.db_path, settings),
+            )
             summary["evaluation"] = _report_summary(report)
 
         return summary
@@ -298,7 +427,7 @@ def create_app():
             created_after=created_after,
             created_before=created_before,
             limit=limit,
-            db_path=db_path,
+            db_path=_resolve_db_path(db_path, settings),
         )
 
     @app.get("/storage/stats")
@@ -314,7 +443,7 @@ def create_app():
             source=source,
             created_after=created_after,
             created_before=created_before,
-            db_path=db_path,
+            db_path=_resolve_db_path(db_path, settings),
         )
 
     @app.post("/storage/prune")
@@ -326,12 +455,12 @@ def create_app():
             source=payload.source,
             vacuum=payload.vacuum,
             dry_run=payload.dry_run,
-            db_path=payload.db_path,
+            db_path=_resolve_db_path(payload.db_path, settings),
         )
 
     @app.get("/streams/{stream_id}")
     def stream_summary(stream_id: str, db_path: str | None = None):
-        stream = load_ingested_stream(stream_id, db_path=db_path)
+        stream = load_ingested_stream(stream_id, db_path=_resolve_db_path(db_path, settings))
         services = sorted({sample.service for sample in stream["telemetry"]})
         latest_report = stream["latest_report"]
         return {
@@ -348,7 +477,7 @@ def create_app():
 
     @app.get("/streams/{stream_id}/timeline")
     def stream_timeline(stream_id: str, db_path: str | None = None):
-        stream = load_ingested_stream(stream_id, db_path=db_path)
+        stream = load_ingested_stream(stream_id, db_path=_resolve_db_path(db_path, settings))
         return {
             "stream_id": stream["stream_id"],
             "telemetry": [asdict(sample) for sample in stream["telemetry"]],
@@ -357,7 +486,8 @@ def create_app():
 
     @app.post("/streams/{stream_id}/evaluate")
     def evaluate_stream(stream_id: str, payload: StreamEvaluationPayload | None = None, db_path: str | None = None):
-        stream = load_ingested_stream(stream_id, db_path=db_path)
+        resolved_db_path = _resolve_db_path(db_path, settings)
+        stream = load_ingested_stream(stream_id, db_path=resolved_db_path)
         metadata = _resolve_stream_metadata(stream_id, stream, payload)
         report = run_pipeline_from_streams(
             stream["telemetry"],
@@ -366,7 +496,7 @@ def create_app():
             planner_mode=getattr(payload, "planner_mode", "heuristic") if payload else "heuristic",
             decision_constraints=_decision_constraints_from_payload(payload),
         )
-        save_stream_report(stream_id, metadata, report, db_path=db_path)
+        save_stream_report(stream_id, metadata, report, db_path=resolved_db_path)
         return _report_summary(report)
 
     @app.get("/runs/replay")
@@ -376,6 +506,214 @@ def create_app():
         return _report_summary(replay)
 
     return app
+
+
+def _load_runtime_settings() -> AppSettings:
+    return load_app_settings()
+
+
+def seed_app_runtime(app, settings: AppSettings) -> None:
+    app.state.runtime_settings = settings
+    app.state.readiness = _build_readiness_state(settings)
+    app.state.rate_limiter = None
+
+
+def initialize_app_runtime(app, settings: AppSettings) -> None:
+    app.state.readiness = _build_readiness_state(settings)
+
+    try:
+        app.state.rate_limiter = (
+            build_rate_limiter(
+                backend=settings.rate_limit_backend,
+                max_requests=settings.rate_limit_requests,
+                window_seconds=settings.rate_limit_window_seconds,
+                redis_url=settings.redis_url,
+                redis_key_prefix=settings.redis_key_prefix,
+            )
+            if settings.rate_limit_enabled
+            else None
+        )
+    except Exception as exc:
+        app.state.readiness = {
+            **app.state.readiness,
+            "ready": False,
+            "error": str(exc),
+        }
+        return
+
+    if settings.auto_init_storage:
+        try:
+            initialize_storage(
+                settings.db_path,
+                metric_retention_days=settings.timescale_metric_retention_days,
+                event_retention_days=settings.timescale_event_retention_days,
+                compress_after_days=settings.timescale_compress_after_days,
+                create_continuous_aggregate=settings.timescale_create_metric_rollup,
+                aggregate_bucket=settings.timescale_aggregate_bucket,
+                aggregate_name=settings.timescale_aggregate_name,
+                refresh_start_offset=settings.timescale_refresh_start_offset,
+                refresh_end_offset=settings.timescale_refresh_end_offset,
+                refresh_schedule_interval=settings.timescale_refresh_schedule_interval,
+            )
+        except Exception as exc:
+            app.state.readiness = {
+                **app.state.readiness,
+                "ready": False,
+                "error": str(exc),
+            }
+            return
+
+    app.state.readiness = {
+        **app.state.readiness,
+        **check_storage_health(settings.db_path),
+        "auth_enabled": settings.auth_enabled,
+        "rate_limit_enabled": settings.rate_limit_enabled,
+        "rate_limit_backend": settings.rate_limit_backend,
+        "audit_log_enabled": settings.audit_log_enabled,
+        "tracing_enabled": settings.enable_tracing,
+        "otel_service_name": settings.otel_service_name,
+    }
+
+
+def _build_readiness_state(settings: AppSettings) -> dict[str, object]:
+    return {
+        "ready": False,
+        "backend": "timescaledb"
+        if settings.db_path.lower().startswith(("postgresql://", "postgres://", "timescaledb://"))
+        else "sqlite",
+        "db_path": settings.db_path,
+        "auth_enabled": settings.auth_enabled,
+        "rate_limit_enabled": settings.rate_limit_enabled,
+        "rate_limit_backend": settings.rate_limit_backend,
+        "audit_log_enabled": settings.audit_log_enabled,
+        "tracing_enabled": settings.enable_tracing,
+        "otel_service_name": settings.otel_service_name,
+        "error": "startup not completed",
+    }
+
+
+def _resolve_db_path(db_path: str | None, settings: AppSettings) -> str:
+    return db_path or settings.db_path
+
+
+def _is_public_path(path: str) -> bool:
+    return path in {"/health", "/ready"}
+
+
+def _resolve_actor(request, settings: AppSettings) -> str:
+    actor = request.headers.get(settings.actor_header_name)
+    if actor:
+        return actor
+
+    api_key = request.headers.get(settings.auth_header_name)
+    if api_key:
+        return f"api_key:{_mask_secret(api_key)}"
+
+    if request.client and request.client.host:
+        return request.client.host
+    return "anonymous"
+
+
+def _resolve_rate_limit_key(*, api_key: str | None, actor: str, client_ip: str | None) -> str:
+    if api_key:
+        return f"key:{_mask_secret(api_key)}"
+    if actor and actor != "anonymous":
+        return f"actor:{actor}"
+    return f"ip:{client_ip or 'unknown'}"
+
+
+def _resolve_audit_action(method: str, path: str) -> str:
+    action_map = {
+        ("GET", "/audit/events"): "list_audit_events",
+        ("POST", "/ingest/bundle"): "ingest_bundle",
+        ("POST", "/ingest/prometheus"): "ingest_prometheus",
+        ("POST", "/storage/prune"): "prune_storage",
+        ("GET", "/storage/stats"): "storage_stats",
+        ("GET", "/streams"): "list_streams",
+        ("GET", "/runs"): "list_runs",
+        ("GET", "/runs/replay"): "replay_run",
+        ("GET", "/matrix"): "scenario_matrix",
+    }
+    if (method, path) in action_map:
+        return action_map[(method, path)]
+    if path.startswith("/streams/") and path.endswith("/evaluate"):
+        return "evaluate_stream"
+    if path.startswith("/streams/") and path.endswith("/timeline"):
+        return "stream_timeline"
+    if path.startswith("/streams/"):
+        return "stream_summary"
+    if path.startswith("/simulate/") and path.endswith("/summary"):
+        return "simulate_summary"
+    if path.startswith("/simulate/"):
+        return "simulate_scenario"
+    if path.startswith("/scenarios/"):
+        return "scenario_catalog"
+    if path == "/scenarios":
+        return "list_scenarios"
+    return f"{method.lower()}_{path.strip('/').replace('/', '_') or 'root'}"
+
+
+def _resolve_resource(path: str) -> tuple[str | None, str | None]:
+    if path.startswith("/streams/"):
+        parts = [part for part in path.split("/") if part]
+        if len(parts) >= 2:
+            return "stream", parts[1]
+        return "stream", None
+    if path.startswith("/storage"):
+        return "storage", None
+    if path.startswith("/ingest"):
+        return "ingestion", None
+    if path.startswith("/simulate"):
+        return "scenario", path.split("/")[-1]
+    return None, None
+
+
+def _should_audit_request(method: str, path: str, status_code: int) -> bool:
+    if path in {"/health", "/ready", "/audit/events"}:
+        return False
+    if status_code >= 400:
+        return True
+    return method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _write_audit_event(
+    *,
+    settings: AppSettings,
+    actor: str,
+    action: str,
+    method: str,
+    path: str,
+    status_code: int,
+    resource_type: str | None,
+    resource_id: str | None,
+    client_ip: str | None,
+    request_id: str,
+    metadata: dict[str, object] | None,
+) -> None:
+    if not settings.audit_log_enabled:
+        return
+    try:
+        save_audit_event(
+            actor=actor,
+            action=action,
+            method=method,
+            path=path,
+            status_code=status_code,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            client_ip=client_ip,
+            request_id=request_id,
+            metadata=metadata,
+            db_path=settings.db_path,
+        )
+    except Exception:
+        return
+
+
+def _mask_secret(value: str) -> str:
+    if len(value) <= 4:
+        return "*" * len(value)
+    return f"{'*' * max(len(value) - 4, 4)}{value[-4:]}"
 
 
 def _decision_constraints_from_payload(payload) -> DecisionConstraints | None:

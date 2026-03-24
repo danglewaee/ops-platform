@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 import re
 from typing import Any
 
+from .resilience import RetryPolicy, retry_call
 from .schemas import ChangeEvent, MetricSample, PipelineReport, ScenarioMetadata
 
 TIMESCALE_SCHEMES = ("postgresql://", "postgres://", "timescaledb://")
@@ -27,10 +29,9 @@ def normalize_timescale_dsn(db_path: str | Path) -> str:
 
 
 def ensure_timescale_schema(db_path: str | Path) -> str:
-    psycopg, _ = _require_psycopg()
     database_url = normalize_timescale_dsn(db_path)
 
-    with psycopg.connect(database_url) as connection:
+    with _connect_timescale(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
             cursor.execute(
@@ -87,6 +88,24 @@ def ensure_timescale_schema(db_path: str | Path) -> str:
             )
             cursor.execute(
                 """
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    id BIGSERIAL PRIMARY KEY,
+                    created_at TIMESTAMPTZ NOT NULL,
+                    actor TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    resource_type TEXT,
+                    resource_id TEXT,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    client_ip TEXT,
+                    request_id TEXT,
+                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb
+                )
+                """
+            )
+            cursor.execute(
+                """
                 SELECT create_hypertable(
                     'metric_samples',
                     by_range('timestamp'),
@@ -123,9 +142,30 @@ def ensure_timescale_schema(db_path: str | Path) -> str:
                 ON pipeline_reports(stream_id, saved_at DESC)
                 """
             )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_audit_events_created_at
+                ON audit_events(created_at DESC)
+                """
+            )
         connection.commit()
 
     return database_url
+
+
+def check_timescale_health(
+    db_path: str | Path,
+) -> dict[str, Any]:
+    database_url = normalize_timescale_dsn(db_path)
+    with _connect_timescale(database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    return {
+        "ready": True,
+        "backend": "timescaledb",
+        "db_path": database_url,
+    }
 
 
 def configure_timescale_features(
@@ -141,7 +181,6 @@ def configure_timescale_features(
     refresh_end_offset: str = "5 minutes",
     refresh_schedule_interval: str = "5 minutes",
 ) -> dict[str, Any]:
-    psycopg, _ = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
     aggregate_name = _validate_identifier(aggregate_name)
     bucket_literal = _validate_interval_literal(aggregate_bucket)
@@ -157,7 +196,7 @@ def configure_timescale_features(
         "continuous_aggregate": aggregate_name if create_continuous_aggregate else None,
     }
 
-    with psycopg.connect(database_url, autocommit=True) as connection:
+    with _connect_timescale(database_url, autocommit=True) as connection:
         with connection.cursor() as cursor:
             if compress_after_days is not None:
                 cursor.execute(
@@ -248,12 +287,11 @@ def ingest_stream_bundle_timescale(
     metadata: dict[str, Any] | ScenarioMetadata | None = None,
     db_path: str | Path,
 ) -> str:
-    psycopg, _ = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
     metadata_payload = asdict(metadata) if isinstance(metadata, ScenarioMetadata) else (metadata or {})
     created_at = datetime.now(timezone.utc)
 
-    with psycopg.connect(database_url) as connection:
+    with _connect_timescale(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -316,10 +354,10 @@ def load_ingested_stream_timescale(
     *,
     db_path: str | Path,
 ) -> dict[str, Any]:
-    psycopg, dict_row = _require_psycopg()
+    _, dict_row = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
 
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
+    with _connect_timescale(database_url, row_factory=dict_row) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -441,10 +479,9 @@ def save_stream_report_timescale(
     *,
     db_path: str | Path,
 ) -> str:
-    psycopg, _ = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
 
-    with psycopg.connect(database_url) as connection:
+    with _connect_timescale(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1 FROM streams WHERE stream_id = %s", (stream_id,))
             if cursor.fetchone() is None:
@@ -467,6 +504,122 @@ def save_stream_report_timescale(
     return database_url
 
 
+def save_audit_event_timescale(
+    *,
+    actor: str,
+    action: str,
+    method: str,
+    path: str,
+    status_code: int,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    client_ip: str | None = None,
+    request_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    db_path: str | Path,
+) -> str:
+    database_url = ensure_timescale_schema(db_path)
+    with _connect_timescale(database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO audit_events(
+                    created_at,
+                    actor,
+                    action,
+                    resource_type,
+                    resource_id,
+                    method,
+                    path,
+                    status_code,
+                    client_ip,
+                    request_id,
+                    metadata_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                """,
+                (
+                    datetime.now(timezone.utc),
+                    actor,
+                    action,
+                    resource_type,
+                    resource_id,
+                    method,
+                    path,
+                    status_code,
+                    client_ip,
+                    request_id,
+                    json.dumps(metadata or {}),
+                ),
+            )
+        connection.commit()
+    return database_url
+
+
+def list_audit_events_timescale(
+    *,
+    limit: int = 100,
+    actor: str | None = None,
+    action: str | None = None,
+    created_after: str | datetime | None = None,
+    created_before: str | datetime | None = None,
+    db_path: str | Path,
+) -> list[dict[str, Any]]:
+    if limit <= 0:
+        raise ValueError("limit must be positive.")
+
+    _, dict_row = _require_psycopg()
+    database_url = ensure_timescale_schema(db_path)
+    where_clause, params = _build_audit_filters(
+        actor=actor,
+        action=action,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    params.append(limit)
+
+    with _connect_timescale(database_url, row_factory=dict_row) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    created_at,
+                    actor,
+                    action,
+                    resource_type,
+                    resource_id,
+                    method,
+                    path,
+                    status_code,
+                    client_ip,
+                    request_id,
+                    metadata_json::text AS metadata_json
+                FROM audit_events
+                {where_clause}
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                params,
+            )
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "created_at": row["created_at"].isoformat(),
+            "actor": row["actor"],
+            "action": row["action"],
+            "resource_type": row["resource_type"],
+            "resource_id": row["resource_id"],
+            "method": row["method"],
+            "path": row["path"],
+            "status_code": row["status_code"],
+            "client_ip": row["client_ip"],
+            "request_id": row["request_id"],
+            "metadata": json.loads(row["metadata_json"]),
+        }
+        for row in rows
+    ]
+
+
 def list_ingested_streams_timescale(
     *,
     environment: str | None = None,
@@ -476,7 +629,7 @@ def list_ingested_streams_timescale(
     limit: int | None = None,
     db_path: str | Path,
 ) -> list[dict[str, Any]]:
-    psycopg, dict_row = _require_psycopg()
+    _, dict_row = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
     where_clause, params = _build_stream_filters(
         environment=environment,
@@ -491,7 +644,7 @@ def list_ingested_streams_timescale(
         limit_clause = " LIMIT %s"
         params.append(limit)
 
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
+    with _connect_timescale(database_url, row_factory=dict_row) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
@@ -561,7 +714,7 @@ def get_storage_stats_timescale(
     created_before: str | datetime | None = None,
     db_path: str | Path,
 ) -> dict[str, Any]:
-    psycopg, dict_row = _require_psycopg()
+    _, dict_row = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
     where_clause, params = _build_stream_filters(
         environment=environment,
@@ -570,7 +723,7 @@ def get_storage_stats_timescale(
         created_before=created_before,
     )
 
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
+    with _connect_timescale(database_url, row_factory=dict_row) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
@@ -614,6 +767,8 @@ def get_storage_stats_timescale(
                 params,
             )
             report_count = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) AS count FROM audit_events")
+            audit_count = cursor.fetchone()["count"]
             cursor.execute("SELECT pg_database_size(current_database()) AS size_bytes")
             db_size_row = cursor.fetchone()
 
@@ -624,6 +779,7 @@ def get_storage_stats_timescale(
         "metric_sample_count": metric_count,
         "event_count": event_count,
         "report_count": report_count,
+        "audit_event_count": audit_count,
         "first_stream_at": stream_summary["first_stream_at"].isoformat() if stream_summary["first_stream_at"] else None,
         "last_stream_at": stream_summary["last_stream_at"].isoformat() if stream_summary["last_stream_at"] else None,
         "filters": {
@@ -695,8 +851,7 @@ def prune_ingested_streams_timescale(
             compact_timescale_storage(db_path=database_url)
         return summary
 
-    psycopg, _ = _require_psycopg()
-    with psycopg.connect(database_url) as connection:
+    with _connect_timescale(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM streams WHERE stream_id = ANY(%s)", (deleted_stream_ids,))
         connection.commit()
@@ -711,9 +866,8 @@ def compact_timescale_storage(
     *,
     db_path: str | Path,
 ) -> str:
-    psycopg, _ = _require_psycopg()
     database_url = ensure_timescale_schema(db_path)
-    with psycopg.connect(database_url, autocommit=True) as connection:
+    with _connect_timescale(database_url, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute("VACUUM (ANALYZE)")
     return database_url
@@ -728,6 +882,34 @@ def _require_psycopg():
             "TimescaleDB support requires psycopg. Install it with `pip install -e .[timeseries]` first."
         ) from exc
     return psycopg, dict_row
+
+
+def _connect_timescale(
+    database_url: str,
+    *,
+    autocommit: bool | None = None,
+    row_factory=None,
+):
+    psycopg, _ = _require_psycopg()
+    policy = _load_db_retry_policy()
+    db_error = getattr(psycopg, "Error", Exception)
+
+    return retry_call(
+        lambda: psycopg.connect(database_url, autocommit=autocommit, row_factory=row_factory),
+        policy=policy,
+        retry_exceptions=(OSError, TimeoutError, db_error),
+    )
+
+
+def _load_db_retry_policy() -> RetryPolicy:
+    attempts = int(os.getenv("OPS_PLATFORM_DB_RETRY_ATTEMPTS", "3"))
+    backoff_seconds = float(os.getenv("OPS_PLATFORM_DB_RETRY_BACKOFF_SECONDS", "0.5"))
+    max_backoff_seconds = float(os.getenv("OPS_PLATFORM_DB_RETRY_MAX_BACKOFF_SECONDS", "5.0"))
+    return RetryPolicy(
+        attempts=attempts,
+        backoff_seconds=backoff_seconds,
+        max_backoff_seconds=max_backoff_seconds,
+    )
 
 
 def _build_stream_filters(
@@ -751,6 +933,34 @@ def _build_stream_filters(
         params.append(_ensure_aware_datetime(_normalize_filter_datetime(created_after)))
     if created_before is not None:
         clauses.append("s.created_at <= %s")
+        params.append(_ensure_aware_datetime(_normalize_filter_datetime(created_before)))
+
+    if not clauses:
+        return "", params
+    return "WHERE " + " AND ".join(clauses), params
+
+
+def _build_audit_filters(
+    *,
+    actor: str | None,
+    action: str | None,
+    created_after: str | datetime | None,
+    created_before: str | datetime | None,
+) -> tuple[str, list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if actor:
+        clauses.append("actor = %s")
+        params.append(actor)
+    if action:
+        clauses.append("action = %s")
+        params.append(action)
+    if created_after is not None:
+        clauses.append("created_at >= %s")
+        params.append(_ensure_aware_datetime(_normalize_filter_datetime(created_after)))
+    if created_before is not None:
+        clauses.append("created_at <= %s")
         params.append(_ensure_aware_datetime(_normalize_filter_datetime(created_before)))
 
     if not clauses:

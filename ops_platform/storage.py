@@ -10,13 +10,18 @@ from typing import Any
 
 from .schemas import ChangeEvent, MetricSample, PipelineReport, ScenarioMetadata
 from .timescale_storage import (
+    check_timescale_health,
     compact_timescale_storage,
+    configure_timescale_features,
     get_storage_stats_timescale,
     ingest_stream_bundle_timescale,
+    ensure_timescale_schema,
     is_timescale_target,
+    list_audit_events_timescale,
     list_ingested_streams_timescale,
     load_ingested_stream_timescale,
     prune_ingested_streams_timescale,
+    save_audit_event_timescale,
     save_stream_report_timescale,
 )
 
@@ -146,6 +151,21 @@ def ensure_sqlite_schema(db_path: str | Path | None = None) -> Path:
                 report_json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                action TEXT NOT NULL,
+                resource_type TEXT,
+                resource_id TEXT,
+                method TEXT NOT NULL,
+                path TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                client_ip TEXT,
+                request_id TEXT,
+                metadata_json TEXT NOT NULL DEFAULT '{}'
+            );
+
             CREATE INDEX IF NOT EXISTS idx_metric_samples_stream_step
             ON metric_samples(stream_id, step, timestamp);
 
@@ -154,11 +174,77 @@ def ensure_sqlite_schema(db_path: str | Path | None = None) -> Path:
 
             CREATE INDEX IF NOT EXISTS idx_pipeline_reports_stream_id
             ON pipeline_reports(stream_id, id DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_audit_events_created_at
+            ON audit_events(created_at DESC);
             """
         )
         connection.commit()
 
     return database_path
+
+
+def initialize_storage(
+    db_path: str | Path | None = None,
+    *,
+    metric_retention_days: int | None = None,
+    event_retention_days: int | None = None,
+    compress_after_days: int | None = None,
+    create_continuous_aggregate: bool = False,
+    aggregate_bucket: str = "5 minutes",
+    aggregate_name: str = "metric_samples_5m",
+    refresh_start_offset: str = "30 days",
+    refresh_end_offset: str = "5 minutes",
+    refresh_schedule_interval: str = "5 minutes",
+) -> str | Path:
+    if is_timescale_target(db_path):
+        database_url = ensure_timescale_schema(db_path)
+        if (
+            metric_retention_days is not None
+            or event_retention_days is not None
+            or compress_after_days is not None
+            or create_continuous_aggregate
+        ):
+            configure_timescale_features(
+                database_url,
+                metric_retention_days=metric_retention_days,
+                event_retention_days=event_retention_days,
+                compress_after_days=compress_after_days,
+                create_continuous_aggregate=create_continuous_aggregate,
+                aggregate_bucket=aggregate_bucket,
+                aggregate_name=aggregate_name,
+                refresh_start_offset=refresh_start_offset,
+                refresh_end_offset=refresh_end_offset,
+                refresh_schedule_interval=refresh_schedule_interval,
+            )
+        return database_url
+    return ensure_sqlite_schema(db_path)
+
+
+def check_storage_health(
+    db_path: str | Path | None = None,
+) -> dict[str, Any]:
+    try:
+        if is_timescale_target(db_path):
+            return check_timescale_health(db_path)
+
+        database_path = ensure_sqlite_schema(db_path)
+        with closing(sqlite3.connect(database_path)) as connection:
+            connection.execute("SELECT 1").fetchone()
+        return {
+            "ready": True,
+            "backend": "sqlite",
+            "db_path": str(database_path),
+        }
+    except Exception as exc:
+        backend = "timescaledb" if is_timescale_target(db_path) else "sqlite"
+        target = str(db_path) if db_path is not None else str(SQLITE_DB_PATH)
+        return {
+            "ready": False,
+            "backend": backend,
+            "db_path": target,
+            "error": str(exc),
+        }
 
 
 def ingest_stream_bundle(
@@ -469,6 +555,146 @@ def list_ingested_streams(
     return streams
 
 
+def save_audit_event(
+    *,
+    actor: str,
+    action: str,
+    method: str,
+    path: str,
+    status_code: int,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    client_ip: str | None = None,
+    request_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    db_path: str | Path | None = None,
+) -> str | Path:
+    if is_timescale_target(db_path):
+        return save_audit_event_timescale(
+            actor=actor,
+            action=action,
+            method=method,
+            path=path,
+            status_code=status_code,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            client_ip=client_ip,
+            request_id=request_id,
+            metadata=metadata,
+            db_path=db_path,
+        )
+
+    database_path = ensure_sqlite_schema(db_path)
+    metadata_payload = metadata or {}
+    with closing(sqlite3.connect(database_path)) as connection:
+        connection.execute(
+            """
+            INSERT INTO audit_events(
+                created_at,
+                actor,
+                action,
+                resource_type,
+                resource_id,
+                method,
+                path,
+                status_code,
+                client_ip,
+                request_id,
+                metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now(timezone.utc).isoformat(),
+                actor,
+                action,
+                resource_type,
+                resource_id,
+                method,
+                path,
+                status_code,
+                client_ip,
+                request_id,
+                json.dumps(metadata_payload),
+            ),
+        )
+        connection.commit()
+
+    return database_path
+
+
+def list_audit_events(
+    *,
+    limit: int = 100,
+    actor: str | None = None,
+    action: str | None = None,
+    created_after: str | datetime | None = None,
+    created_before: str | datetime | None = None,
+    db_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    if is_timescale_target(db_path):
+        return list_audit_events_timescale(
+            limit=limit,
+            actor=actor,
+            action=action,
+            created_after=created_after,
+            created_before=created_before,
+            db_path=db_path,
+        )
+
+    if limit <= 0:
+        raise ValueError("limit must be positive.")
+
+    database_path = ensure_sqlite_schema(db_path)
+    where_clause, params = _build_audit_filters(
+        actor=actor,
+        action=action,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    params.append(limit)
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            f"""
+            SELECT
+                created_at,
+                actor,
+                action,
+                resource_type,
+                resource_id,
+                method,
+                path,
+                status_code,
+                client_ip,
+                request_id,
+                metadata_json
+            FROM audit_events
+            {where_clause}
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+
+    return [
+        {
+            "created_at": row["created_at"],
+            "actor": row["actor"],
+            "action": row["action"],
+            "resource_type": row["resource_type"],
+            "resource_id": row["resource_id"],
+            "method": row["method"],
+            "path": row["path"],
+            "status_code": row["status_code"],
+            "client_ip": row["client_ip"],
+            "request_id": row["request_id"],
+            "metadata": json.loads(row["metadata_json"]),
+        }
+        for row in rows
+    ]
+
+
 def get_storage_stats(
     *,
     environment: str | None = None,
@@ -534,6 +760,9 @@ def get_storage_stats(
             """,
             params,
         ).fetchone()["count"]
+        audit_count = connection.execute(
+            "SELECT COUNT(*) AS count FROM audit_events",
+        ).fetchone()["count"]
 
     db_file_size_bytes = database_path.stat().st_size if database_path.exists() else 0
     return {
@@ -543,6 +772,7 @@ def get_storage_stats(
         "metric_sample_count": metric_count,
         "event_count": event_count,
         "report_count": report_count,
+        "audit_event_count": audit_count,
         "first_stream_at": stream_summary["first_stream_at"],
         "last_stream_at": stream_summary["last_stream_at"],
         "filters": {
@@ -674,6 +904,34 @@ def _build_stream_filters(
         params.append(_normalize_filter_datetime(created_after).isoformat())
     if created_before is not None:
         clauses.append("s.created_at <= ?")
+        params.append(_normalize_filter_datetime(created_before).isoformat())
+
+    if not clauses:
+        return "", params
+    return "WHERE " + " AND ".join(clauses), params
+
+
+def _build_audit_filters(
+    *,
+    actor: str | None,
+    action: str | None,
+    created_after: str | datetime | None,
+    created_before: str | datetime | None,
+) -> tuple[str, list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if actor:
+        clauses.append("actor = ?")
+        params.append(actor)
+    if action:
+        clauses.append("action = ?")
+        params.append(action)
+    if created_after is not None:
+        clauses.append("created_at >= ?")
+        params.append(_normalize_filter_datetime(created_after).isoformat())
+    if created_before is not None:
+        clauses.append("created_at <= ?")
         params.append(_normalize_filter_datetime(created_before).isoformat())
 
     if not clauses:

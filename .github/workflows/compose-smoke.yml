@@ -1,0 +1,89 @@
+name: Compose Smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare smoke environment
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp .env.example .env.ci
+          python - <<'PY'
+          from pathlib import Path
+
+          env_path = Path(".env.ci")
+          payload = {}
+          for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+              continue
+            key, value = stripped.split("=", 1)
+            payload[key] = value
+
+          payload.update(
+            {
+              "OPS_PLATFORM_API_KEYS": "ci-smoke-token",
+              "OPS_PLATFORM_POSTGRES_PASSWORD": "ops-ci",
+              "OPS_PLATFORM_RATE_LIMIT_BACKEND": "redis",
+              "OPS_PLATFORM_REDIS_URL": "redis://redis:6379/0",
+              "OPS_PLATFORM_ENABLE_TRACING": "true",
+            }
+          )
+
+          env_path.write_text(
+            "\n".join(f"{key}={value}" for key, value in payload.items()) + "\n",
+            encoding="utf-8",
+          )
+          PY
+
+      - name: Validate docker-compose config
+        run: docker compose --env-file .env.ci -f docker-compose.yml config
+
+      - name: Run compose smoke check
+        run: |
+          python scripts/smoke_docker_stack.py \
+            --env-file .env.ci \
+            --project-name ci-smoke \
+            --timeout-seconds 300 \
+            --keep-up \
+            --summary-path artifacts/ci-smoke-summary.json
+
+      - name: Capture compose state
+        if: always()
+        shell: bash
+        run: |
+          docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke ps > artifacts/compose-ps.txt || true
+          docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke logs --no-color > artifacts/compose-logs.txt || true
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke down -v
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            artifacts/ci-smoke-summary.json
+            artifacts/compose-ps.txt
+            artifacts/compose-logs.txt

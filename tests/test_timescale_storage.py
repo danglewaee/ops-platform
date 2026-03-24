@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ops_platform.storage import ingest_stream_bundle, list_ingested_streams
+from ops_platform.resilience import RetryPolicy
 from ops_platform.timescale_storage import configure_timescale_features, ensure_timescale_schema
 
 
@@ -52,11 +53,15 @@ class _FakeConnection:
 
 
 class _FakePsycopg:
-    def __init__(self) -> None:
+    def __init__(self, failures_before_success: int = 0) -> None:
         self.connections: list[tuple[str, bool | None, object]] = []
         self.connection_instances: list[_FakeConnection] = []
+        self.failures_before_success = failures_before_success
 
     def connect(self, dsn: str, autocommit: bool | None = None, row_factory=None):
+        if self.failures_before_success > 0:
+            self.failures_before_success -= 1
+            raise OSError("transient db failure")
         self.connections.append((dsn, autocommit, row_factory))
         connection = _FakeConnection()
         self.connection_instances.append(connection)
@@ -87,6 +92,7 @@ class TimescaleStorageTests(unittest.TestCase):
         self.assertIn("create_hypertable", executed)
         self.assertIn("metric_samples", executed)
         self.assertIn("change_events", executed)
+        self.assertIn("audit_events", executed)
 
     def test_configure_timescale_features_adds_policies_and_rollup(self) -> None:
         fake_psycopg = _FakePsycopg()
@@ -106,6 +112,20 @@ class TimescaleStorageTests(unittest.TestCase):
         self.assertIn("add_retention_policy", executed)
         self.assertIn("CREATE MATERIALIZED VIEW IF NOT EXISTS metric_samples_5m", executed)
         self.assertIn("add_continuous_aggregate_policy", executed)
+
+    def test_ensure_timescale_schema_retries_transient_connection_failures(self) -> None:
+        fake_psycopg = _FakePsycopg(failures_before_success=1)
+        with (
+            patch("ops_platform.timescale_storage._require_psycopg", return_value=(fake_psycopg, object())),
+            patch(
+                "ops_platform.timescale_storage._load_db_retry_policy",
+                return_value=RetryPolicy(attempts=2, backoff_seconds=0.0, max_backoff_seconds=0.0),
+            ),
+        ):
+            dsn = ensure_timescale_schema("postgresql://user:pass@host:5432/ops")
+
+        self.assertEqual(dsn, "postgresql://user:pass@host:5432/ops")
+        self.assertEqual(len(fake_psycopg.connections), 1)
 
 
 if __name__ == "__main__":

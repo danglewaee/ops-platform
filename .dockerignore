@@ -1,0 +1,12 @@
+.git
+.gitignore
+.pip-cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+artifacts
+runs
+ops_decision_platform.egg-info

@@ -6,6 +6,7 @@ __pycache__/
 .venv/
 venv/
 .pip-cache/
+.env
 *.egg-info/
 artifacts/serve.out.txt
 artifacts/serve.err.txt

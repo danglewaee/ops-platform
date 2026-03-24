@@ -7,9 +7,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
+from urllib.error import URLError
 from unittest.mock import patch
 
 from ops_platform.prometheus_ingestion import (
+    PrometheusIngestionConfig,
     fetch_prometheus_metrics,
     load_prometheus_config,
     resolve_prometheus_window,
@@ -109,6 +111,41 @@ class PrometheusIngestionTests(unittest.TestCase):
         self.assertEqual({sample.service for sample in samples}, {"gateway"})
         self.assertEqual(sorted({sample.step for sample in samples}), [0, 1])
         self.assertTrue(all(sample.dimensions["cluster"] == "prod-a" for sample in samples))
+
+    def test_fetch_prometheus_metrics_retries_transient_url_errors(self) -> None:
+        config = PrometheusIngestionConfig(
+            base_url="http://prometheus.local:9090",
+            queries={"request_rate": "sum(rate(http_requests_total[5m])) by (service)"},
+            retry_attempts=2,
+            retry_backoff_seconds=0.0,
+            retry_max_backoff_seconds=0.0,
+        )
+        start = datetime(2026, 3, 20, 9, 0, 0)
+        end = datetime(2026, 3, 20, 9, 0, 0)
+        timestamp = datetime(2026, 3, 20, 9, 0, 0, tzinfo=timezone.utc).timestamp()
+        responses = [
+            URLError("temporary network failure"),
+            _FakeResponse(
+                {
+                    "status": "success",
+                    "data": {
+                        "resultType": "matrix",
+                        "result": [
+                            {
+                                "metric": {"service": "gateway"},
+                                "values": [[timestamp, "1800"]],
+                            }
+                        ],
+                    },
+                }
+            ),
+        ]
+
+        with patch("ops_platform.prometheus_ingestion.urlopen", side_effect=responses):
+            samples = fetch_prometheus_metrics(config, start=start, end=end)
+
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].service, "gateway")
 
     def test_prometheus_ingest_endpoint_persists_and_evaluates_stream(self) -> None:
         try:
