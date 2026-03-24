@@ -72,11 +72,15 @@ jobs:
       - name: Validate docker-compose config
         run: docker compose --env-file .env.ci -f docker-compose.yml config
 
+      - name: Build compose images
+        run: docker compose --env-file .env.ci -f docker-compose.yml build
+
       - name: Run compose smoke check
         run: |
           python scripts/smoke_docker_stack.py \
             --env-file .env.ci \
             --project-name ci-smoke \
+            --skip-build \
             --timeout-seconds 300 \
             --keep-up \
             --summary-path artifacts/ci-smoke-summary.json

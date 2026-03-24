@@ -60,13 +60,6 @@ def run_smoke_check(
     )
     base_url = env.get("OPS_PLATFORM_SMOKE_BASE_URL") or f"http://127.0.0.1:{env.get('OPS_PLATFORM_API_PORT', '8000')}"
     headers = resolve_api_headers(env)
-
-    up_command = [*compose_command, "up", "-d"]
-    if build:
-        up_command.append("--build")
-
-    subprocess.run(up_command, cwd=ROOT, check=True)
-
     summary: dict[str, Any] = {
         "compose_file": str(compose_file),
         "env_file": str(env_file),
@@ -76,7 +69,12 @@ def run_smoke_check(
         "keep_up": keep_up,
     }
 
+    up_command = [*compose_command, "up", "-d"]
+    if build:
+        up_command.append("--build")
+
     try:
+        subprocess.run(up_command, cwd=ROOT, check=True)
         ready = poll_json(f"{base_url}/ready", timeout_seconds=timeout_seconds)
         if not ready.get("ready"):
             raise RuntimeError(f"Stack reported not ready: {ready}")

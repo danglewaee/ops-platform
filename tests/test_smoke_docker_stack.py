@@ -174,6 +174,38 @@ class SmokeDockerStackTests(unittest.TestCase):
             self.assertEqual(subprocess_calls[-2][-2:], ["logs", "--no-color"])
             self.assertEqual(subprocess_calls[-1][-2:], ["down", "-v"])
 
+    def test_run_smoke_check_captures_compose_up_failures(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            compose_path = Path(temp_dir) / "docker-compose.yml"
+            compose_path.write_text("services: {}\n", encoding="utf-8")
+            env_path = Path(temp_dir) / ".env"
+            env_path.write_text("OPS_PLATFORM_API_PORT=8123\n", encoding="utf-8")
+
+            completed = subprocess.CompletedProcess(args=["docker"], returncode=0, stdout="", stderr="")
+            failure = subprocess.CalledProcessError(returncode=1, cmd=["docker", "compose", "up"])
+
+            with patch("scripts.smoke_docker_stack.subprocess.run") as subprocess_run:
+                subprocess_run.side_effect = [failure, completed, completed, completed]
+                summary_path = Path(temp_dir) / "artifacts" / "smoke-summary.json"
+
+                with self.assertRaises(subprocess.CalledProcessError):
+                    run_smoke_check(
+                        compose_file=compose_path,
+                        env_file=env_path,
+                        project_name="ops-smoke",
+                        keep_up=False,
+                        summary_path=summary_path,
+                    )
+
+            self.assertTrue(summary_path.exists())
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "error")
+            subprocess_calls = [call.args[0] for call in subprocess_run.call_args_list]
+            self.assertEqual(subprocess_calls[0][-3:], ["up", "-d", "--build"])
+            self.assertEqual(subprocess_calls[1][-1], "ps")
+            self.assertEqual(subprocess_calls[2][-2:], ["logs", "--no-color"])
+            self.assertEqual(subprocess_calls[3][-2:], ["down", "-v"])
+
 
 if __name__ == "__main__":
     unittest.main()
