@@ -330,7 +330,12 @@ The recurring summary now includes:
 
 ## Deploy With Docker Compose
 
-The repository now includes a minimal deployment bundle for:
+The repository now includes two container paths:
+
+- `docker-compose.smoke.yml` for a fast SQLite-backed API smoke stack used by CI
+- `docker-compose.yml` for the fuller production-like stack with `timescaledb`, `redis`, `otel-collector`, and one-shot `timescale-init`
+
+The full stack includes:
 
 - `api`
 - `timescaledb`
@@ -350,13 +355,29 @@ Then bring the stack up:
 docker compose up --build
 ```
 
-Or run a one-shot smoke check that brings the stack up, waits for `/ready`, probes the secured endpoints, and tears everything down again:
+For the fast SQLite smoke stack, run:
 
 ```powershell
-python .\scripts\smoke_docker_stack.py --env-file .\.env
+Copy-Item .\.env.smoke.example .\.env.smoke
+docker compose --env-file .\.env.smoke -f .\docker-compose.smoke.yml up --build
 ```
 
-The repository also includes a GitHub Actions workflow at [.github/workflows/compose-smoke.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/compose-smoke.yml) that runs the same smoke path in CI and uploads the compose logs plus smoke summary as artifacts.
+Or run the smoke script against that same env file:
+
+```powershell
+python .\scripts\smoke_docker_stack.py --compose-file .\docker-compose.smoke.yml --env-file .\.env.smoke
+```
+
+If you only want the compose command:
+
+```powershell
+docker compose -f .\docker-compose.smoke.yml up --build
+```
+
+The repository also includes:
+
+- [.github/workflows/compose-smoke.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/compose-smoke.yml) for the default SQLite-backed CI smoke path
+- [.github/workflows/timescale-integration.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/timescale-integration.yml) for manual full-stack Timescale integration runs with uploaded compose logs and summaries
 
 Key runtime settings are read from environment variables:
 

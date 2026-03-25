@@ -1,0 +1,105 @@
+name: Timescale Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  timescale-compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare integration environment
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp .env.example .env.integration
+          python - <<'PY'
+          from pathlib import Path
+
+          env_path = Path(".env.integration")
+          payload = {}
+          for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+              continue
+            key, value = stripped.split("=", 1)
+            payload[key] = value
+
+          payload.update(
+            {
+              "OPS_PLATFORM_AUTO_INIT_STORAGE": "false",
+              "OPS_PLATFORM_POSTGRES_USER": "ops",
+              "OPS_PLATFORM_API_KEYS": "timescale-token",
+              "OPS_PLATFORM_POSTGRES_DB": "ops_platform",
+              "OPS_PLATFORM_POSTGRES_PASSWORD": "ops-ci",
+              "OPS_PLATFORM_RATE_LIMIT_BACKEND": "redis",
+              "OPS_PLATFORM_REDIS_URL": "redis://redis:6379/0",
+              "OPS_PLATFORM_ENABLE_TRACING": "false",
+              "OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS": "",
+              "OPS_PLATFORM_TIMESCALE_CREATE_METRIC_ROLLUP": "false",
+            }
+          )
+
+          payload["OPS_PLATFORM_DB_PATH"] = (
+            "postgresql://"
+            f"{payload['OPS_PLATFORM_POSTGRES_USER']}:"
+            f"{payload['OPS_PLATFORM_POSTGRES_PASSWORD']}"
+            "@timescaledb:5432/"
+            f"{payload['OPS_PLATFORM_POSTGRES_DB']}"
+          )
+
+          env_path.write_text(
+            "\n".join(f"{key}={value}" for key, value in payload.items()) + "\n",
+            encoding="utf-8",
+          )
+          PY
+
+      - name: Validate full docker-compose config
+        run: docker compose --env-file .env.integration -f docker-compose.yml config
+
+      - name: Build full-stack images
+        run: docker compose --env-file .env.integration -f docker-compose.yml build
+
+      - name: Run full-stack smoke check
+        run: |
+          python scripts/smoke_docker_stack.py \
+            --compose-file docker-compose.yml \
+            --env-file .env.integration \
+            --project-name timescale-integration \
+            --skip-build \
+            --timeout-seconds 300 \
+            --keep-up \
+            --summary-path artifacts/timescale-integration-summary.json
+
+      - name: Capture full-stack compose state
+        if: always()
+        shell: bash
+        run: |
+          docker compose --env-file .env.integration -f docker-compose.yml -p timescale-integration ps > artifacts/timescale-compose-ps.txt || true
+          docker compose --env-file .env.integration -f docker-compose.yml -p timescale-integration logs --no-color > artifacts/timescale-compose-logs.txt || true
+
+      - name: Tear down full-stack compose stack
+        if: always()
+        run: docker compose --env-file .env.integration -f docker-compose.yml -p timescale-integration down -v
+
+      - name: Upload integration artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timescale-integration-artifacts
+          if-no-files-found: ignore
+          path: |
+            artifacts/timescale-integration-summary.json
+            artifacts/timescale-compose-ps.txt
+            artifacts/timescale-compose-logs.txt

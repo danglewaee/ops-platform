@@ -25,43 +25,20 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          cp .env.example .env.ci
           python - <<'PY'
           from pathlib import Path
 
           env_path = Path(".env.ci")
-          payload = {}
-          for line in env_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-              continue
-            key, value = stripped.split("=", 1)
-            payload[key] = value
-
-          payload.update(
-            {
-              "OPS_PLATFORM_AUTO_INIT_STORAGE": "false",
-              "OPS_PLATFORM_POSTGRES_USER": "ops",
-              "OPS_PLATFORM_API_KEYS": "ci-smoke-token",
-              "OPS_PLATFORM_POSTGRES_DB": "ops_platform",
-              "OPS_PLATFORM_POSTGRES_PASSWORD": "ops-ci",
-              "OPS_PLATFORM_RATE_LIMIT_BACKEND": "redis",
-              "OPS_PLATFORM_REDIS_URL": "redis://redis:6379/0",
-              "OPS_PLATFORM_ENABLE_TRACING": "false",
-              "OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS": "",
-              "OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS": "",
-              "OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS": "",
-              "OPS_PLATFORM_TIMESCALE_CREATE_METRIC_ROLLUP": "false",
-            }
-          )
-
-          payload["OPS_PLATFORM_DB_PATH"] = (
-            "postgresql://"
-            f"{payload['OPS_PLATFORM_POSTGRES_USER']}:"
-            f"{payload['OPS_PLATFORM_POSTGRES_PASSWORD']}"
-            "@timescaledb:5432/"
-            f"{payload['OPS_PLATFORM_POSTGRES_DB']}"
-          )
+          payload = {
+            "OPS_PLATFORM_API_PORT": "8000",
+            "OPS_PLATFORM_DB_PATH": "/app/artifacts/ops_platform.sqlite3",
+            "OPS_PLATFORM_AUTO_INIT_STORAGE": "true",
+            "OPS_PLATFORM_AUTH_ENABLED": "true",
+            "OPS_PLATFORM_API_KEYS": "ci-smoke-token",
+            "OPS_PLATFORM_RATE_LIMIT_ENABLED": "true",
+            "OPS_PLATFORM_RATE_LIMIT_BACKEND": "memory",
+            "OPS_PLATFORM_ENABLE_TRACING": "false",
+          }
 
           env_path.write_text(
             "\n".join(f"{key}={value}" for key, value in payload.items()) + "\n",
@@ -70,14 +47,15 @@ jobs:
           PY
 
       - name: Validate docker-compose config
-        run: docker compose --env-file .env.ci -f docker-compose.yml config
+        run: docker compose --env-file .env.ci -f docker-compose.smoke.yml config
 
       - name: Build compose images
-        run: docker compose --env-file .env.ci -f docker-compose.yml build
+        run: docker compose --env-file .env.ci -f docker-compose.smoke.yml build
 
       - name: Run compose smoke check
         run: |
           python scripts/smoke_docker_stack.py \
+            --compose-file docker-compose.smoke.yml \
             --env-file .env.ci \
             --project-name ci-smoke \
             --skip-build \
@@ -89,12 +67,12 @@ jobs:
         if: always()
         shell: bash
         run: |
-          docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke ps > artifacts/compose-ps.txt || true
-          docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke logs --no-color > artifacts/compose-logs.txt || true
+          docker compose --env-file .env.ci -f docker-compose.smoke.yml -p ci-smoke ps > artifacts/compose-ps.txt || true
+          docker compose --env-file .env.ci -f docker-compose.smoke.yml -p ci-smoke logs --no-color > artifacts/compose-logs.txt || true
 
       - name: Tear down compose stack
         if: always()
-        run: docker compose --env-file .env.ci -f docker-compose.yml -p ci-smoke down -v
+        run: docker compose --env-file .env.ci -f docker-compose.smoke.yml -p ci-smoke down -v
 
       - name: Upload smoke artifacts
         if: always()
