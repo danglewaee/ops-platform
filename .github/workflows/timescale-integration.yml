@@ -36,6 +36,8 @@ jobs:
 
           payload.update(
             {
+              "OPS_PLATFORM_HOST_PORT": "18081",
+              "OPS_PLATFORM_SMOKE_BASE_URL": "http://127.0.0.1:18081",
               "OPS_PLATFORM_AUTO_INIT_STORAGE": "false",
               "OPS_PLATFORM_POSTGRES_USER": "ops",
               "OPS_PLATFORM_API_KEYS": "timescale-token",

@@ -25,7 +25,7 @@ services:
       OPS_PLATFORM_OTLP_ENDPOINT: ${OPS_PLATFORM_OTLP_ENDPOINT:-}
       OPS_PLATFORM_OTEL_SERVICE_NAME: ${OPS_PLATFORM_OTEL_SERVICE_NAME:-ops-decision-platform-api}
     ports:
-      - "8000:8000"
+      - "${OPS_PLATFORM_HOST_PORT:-8000}:8000"
     volumes:
       - ./artifacts:/app/artifacts
       - ./runs:/app/runs

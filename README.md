@@ -379,6 +379,8 @@ The repository also includes:
 - [.github/workflows/compose-smoke.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/compose-smoke.yml) for the default SQLite-backed CI smoke path
 - [.github/workflows/timescale-integration.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/timescale-integration.yml) for manual full-stack Timescale integration runs with uploaded compose logs and summaries
 
+`OPS_PLATFORM_API_PORT` controls the port the app listens on inside the container. `OPS_PLATFORM_HOST_PORT` controls the host-side published port. For smoke runs, keep the internal port at `8000` and move the host port if `8000` is already occupied.
+
 Key runtime settings are read from environment variables:
 
 - `OPS_PLATFORM_DB_PATH`

@@ -99,7 +99,7 @@ services:
       OPS_PLATFORM_TIMESCALE_REFRESH_END_OFFSET: ${OPS_PLATFORM_TIMESCALE_REFRESH_END_OFFSET:-5 minutes}
       OPS_PLATFORM_TIMESCALE_REFRESH_SCHEDULE_INTERVAL: ${OPS_PLATFORM_TIMESCALE_REFRESH_SCHEDULE_INTERVAL:-5 minutes}
     ports:
-      - "8000:8000"
+      - "${OPS_PLATFORM_HOST_PORT:-8000}:8000"
     volumes:
       - ./artifacts:/app/artifacts
       - ./runs:/app/runs
