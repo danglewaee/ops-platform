@@ -3,24 +3,35 @@ from __future__ import annotations
 import time
 
 from .planner import ActionCandidate, select_recommendations
-from .schemas import DecisionConstraints, EvaluationSummary, Forecast, Incident, Recommendation, ScenarioMetadata
+from .schemas import (
+    DecisionConstraints,
+    EvaluationSummary,
+    Forecast,
+    Incident,
+    Recommendation,
+    ScenarioMetadata,
+    ServiceHealth,
+)
 
 
 def recommend_actions(
     incidents: list[Incident],
     forecasts: list[Forecast],
     *,
+    service_health: list[ServiceHealth] | None = None,
     planner_mode: str = "heuristic",
     constraints: DecisionConstraints | None = None,
 ) -> tuple[list[Recommendation], float, str]:
     started = time.perf_counter()
     forecast_by_service = {forecast.service: forecast for forecast in forecasts}
+    service_health_by_service = {item.service: item for item in service_health or []}
     candidates_by_incident: list[list[ActionCandidate]] = []
 
     for incident in incidents:
         target = incident.root_cause_candidates[0] if incident.root_cause_candidates else incident.services[0]
         forecast = forecast_by_service.get(target)
-        candidates_by_incident.append(_candidate_recommendations(incident, target, forecast))
+        health = service_health_by_service.get(target)
+        candidates_by_incident.append(_candidate_recommendations(incident, target, forecast, health))
 
     recommendations, actual_planner_mode = select_recommendations(
         candidates_by_incident,
@@ -114,6 +125,7 @@ def build_baseline_recommendations(
 def _choose_action(
     incident: Incident,
     forecast: Forecast | None,
+    health: ServiceHealth | None,
 ) -> tuple[str, str, float, float, str, float]:
     if incident.trigger_event and "deploy" in incident.trigger_event.lower():
         return (
@@ -133,6 +145,44 @@ def _choose_action(
             -14.0,
             "reduce user impact",
             0.76,
+        )
+
+    if health and health.projected_burn_rate >= 1.75:
+        if health.dominant_signal == "queue_depth":
+            return (
+                "increase_consumers",
+                "Projected queue budget burn is critical, so adding consumers is safer than waiting for backlog to spill into user latency.",
+                6.0,
+                -24.0,
+                "drain queue pressure",
+                0.84,
+            )
+        return (
+            "scale_out",
+            "Projected SLO burn is critical, so adding bounded capacity is the safest shadow-mode action before the budget is exhausted.",
+            8.5,
+            -24.0,
+            "protect latency budget",
+            0.83,
+        )
+
+    if forecast and forecast.budget_pressure in {"high", "critical"}:
+        if forecast.dominant_slo_signal == "queue_depth" and forecast.projected_queue_depth >= 12:
+            return (
+                "increase_consumers",
+                "Queue depth is the dominant SLO pressure signal, so increasing consumers is safer than generic scaling.",
+                6.0,
+                -20.0,
+                "reduce queue pressure",
+                0.81,
+            )
+        return (
+            "scale_out",
+            "Projected burn rate is climbing toward the SLO limit, so adding bounded capacity is safer than waiting for reactive thresholds.",
+            8.0,
+            -18.0,
+            "stabilize latency budget",
+            0.79,
         )
 
     if forecast and forecast.risk_level == "high":
@@ -168,8 +218,9 @@ def _candidate_recommendations(
     incident: Incident,
     target: str,
     forecast: Forecast | None,
+    health: ServiceHealth | None,
 ) -> list[ActionCandidate]:
-    preferred_action, rationale, cost_delta, latency_delta, risk_change, confidence = _choose_action(incident, forecast)
+    preferred_action, rationale, cost_delta, latency_delta, risk_change, confidence = _choose_action(incident, forecast, health)
     candidates: dict[str, Recommendation] = {
         preferred_action: Recommendation(
             action=preferred_action,
@@ -199,7 +250,7 @@ def _candidate_recommendations(
     planned_candidates: list[ActionCandidate] = []
     for action, recommendation in candidates.items():
         bonus = 100.0 if action == preferred_action else 0.0
-        score = _recommendation_score(recommendation) + _candidate_fit_bonus(action, incident, forecast) + bonus
+        score = _recommendation_score(recommendation) + _candidate_fit_bonus(action, incident, forecast, health) + bonus
         planned_candidates.append(ActionCandidate(recommendation=recommendation, score=round(score, 3)))
 
     return planned_candidates
@@ -430,6 +481,7 @@ def _candidate_fit_bonus(
     action: str,
     incident: Incident,
     forecast: Forecast | None,
+    health: ServiceHealth | None,
 ) -> float:
     if action == "rollback_candidate" and incident.trigger_event and "deploy" in incident.trigger_event.lower():
         return 12.0
@@ -439,7 +491,23 @@ def _candidate_fit_bonus(
         return 8.0
     if action == "scale_out" and forecast and forecast.risk_level == "high":
         return 7.0
-    if action == "hold_steady" and (not forecast or forecast.risk_level == "low"):
+    if (
+        action == "increase_consumers"
+        and health
+        and health.projected_burn_rate >= 1.25
+        and health.dominant_signal == "queue_depth"
+    ):
+        return 9.0
+    if (
+        action == "scale_out"
+        and health
+        and health.projected_burn_rate >= 1.25
+        and health.dominant_signal != "queue_depth"
+    ):
+        return 8.0
+    if action == "hold_steady" and (not forecast or forecast.risk_level == "low") and (
+        not health or health.budget_pressure == "low"
+    ):
         return 5.0
     return 0.0
 

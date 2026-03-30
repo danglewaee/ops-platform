@@ -6,6 +6,7 @@ from .decision_engine import (
     recommend_actions,
 )
 from .detection import detect_anomalies
+from .feature_builder import build_service_health
 from .forecasting import forecast_services
 from .incident_engine import correlate_incidents
 from .schemas import ChangeEvent, DecisionConstraints, MetricSample, PipelineReport, ScenarioMetadata
@@ -39,13 +40,25 @@ def run_pipeline_from_streams(
             incidents = correlate_incidents(anomalies, events)
         annotate_span(pipeline_span, ops_incidents=len(incidents))
 
+        with traced_span("ops.pipeline.feature_build"):
+            current_service_health = build_service_health(telemetry, incidents)
+        annotate_span(
+            pipeline_span,
+            ops_service_health=len(current_service_health),
+            ops_slo_hot_services=sum(1 for item in current_service_health if item.budget_pressure in {"high", "critical"}),
+        )
+
         with traced_span("ops.pipeline.forecast"):
-            forecasts = forecast_services(telemetry, incidents)
+            forecasts = forecast_services(telemetry, incidents, service_health=current_service_health)
+
+        with traced_span("ops.pipeline.feature_finalize"):
+            service_health = build_service_health(telemetry, incidents, forecasts)
 
         with traced_span("ops.pipeline.decide", {"ops.planner.mode": planner_mode}):
             recommendations, decision_latency_ms, actual_planner_mode = recommend_actions(
                 incidents,
                 forecasts,
+                service_health=service_health,
                 planner_mode=planner_mode,
                 constraints=decision_constraints,
             )
@@ -74,6 +87,7 @@ def run_pipeline_from_streams(
         anomalies=anomalies,
         incidents=incidents,
         forecasts=forecasts,
+        service_health=service_health,
         recommendations=recommendations,
         evaluation=evaluation,
     )

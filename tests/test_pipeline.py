@@ -53,12 +53,15 @@ class PipelineScenarioTests(unittest.TestCase):
             replay = run_pipeline_from_streams(bundle["telemetry"], bundle["events"], bundle["metadata"])
             self.assertEqual(report.recommendations[0].action, replay.recommendations[0].action)
             self.assertEqual(report.incidents[0].root_cause_candidates[:2], replay.incidents[0].root_cause_candidates[:2])
+            self.assertEqual(report.service_health[0].service, replay.service_health[0].service)
 
     def test_evaluation_includes_shadow_metrics(self) -> None:
         report = run_pipeline("traffic_spike", seed=7)
         baseline_policies = {item["policy"] for item in report.evaluation.baseline_comparisons}
         self.assertEqual(report.evaluation.evaluation_mode, "ground_truth")
         self.assertIn("naive_reroute", baseline_policies)
+        self.assertTrue(report.service_health)
+        self.assertGreater(report.forecasts[0].projected_burn_rate, 0.0)
         self.assertGreater(report.evaluation.latency_protection_pct, 0.0)
         self.assertGreaterEqual(report.evaluation.baseline_win_rate_pct, 0.0)
         self.assertEqual(report.evaluation.action_stability_pct, 100.0)

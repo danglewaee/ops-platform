@@ -32,9 +32,11 @@ The current prototype has six layers:
 4. `incident_engine`
    - Clusters related anomalies into incidents and ranks likely root causes.
 5. `forecasting`
-   - Estimates short-horizon demand and latency risk.
-6. `decision_engine`
-   - Recommends actions in shadow mode and evaluates them against scenario ground truth.
+   - Estimates short-horizon demand, SLO burn, and latency risk.
+6. `feature_builder`
+   - Builds service-level SLI/SLO snapshots, budget pressure, and dominant burn signals.
+7. `decision_engine`
+   - Recommends actions in shadow mode with SLO-aware policy signals and evaluates them against scenario ground truth.
 
 It now also includes a production-like persistence layer for replayable telemetry streams:
 
@@ -61,6 +63,7 @@ ops-decision-platform/
     api.py
     decision_engine.py
     detection.py
+    feature_builder.py
     forecasting.py
     incident_engine.py
     planner.py
@@ -151,6 +154,7 @@ The test suite now covers:
 - SQLite ingestion and replay
 - shadow-only evaluation when ground truth is unavailable
 - planner constraints and recurring observability config
+- SLO burn-rate and budget-pressure feature signals
 
 ## Optional API
 

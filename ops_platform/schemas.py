@@ -60,6 +60,27 @@ class Forecast:
     projected_queue_depth: float
     risk_level: str
     rationale: str
+    current_burn_rate: float = 0.0
+    projected_burn_rate: float = 0.0
+    budget_pressure: str = "low"
+    dominant_slo_signal: str | None = None
+
+
+@dataclass(slots=True)
+class ServiceHealth:
+    service: str
+    latency_slo_ms: float
+    error_rate_slo_pct: float
+    queue_depth_slo: float
+    current_latency_ms: float
+    current_error_rate_pct: float
+    current_queue_depth: float
+    current_burn_rate: float
+    projected_burn_rate: float
+    estimated_error_budget_remaining_pct: float
+    budget_pressure: str
+    dominant_signal: str
+    rationale: str
 
 
 @dataclass(slots=True)
@@ -122,6 +143,7 @@ class PipelineReport:
     anomalies: list[Anomaly]
     incidents: list[Incident]
     forecasts: list[Forecast]
+    service_health: list[ServiceHealth]
     recommendations: list[Recommendation]
     evaluation: EvaluationSummary
 
@@ -135,6 +157,7 @@ class PipelineReport:
             anomalies=[Anomaly.from_dict(item) for item in payload["anomalies"]],
             incidents=[Incident.from_dict(item) for item in payload["incidents"]],
             forecasts=[Forecast.from_dict(item) for item in payload["forecasts"]],
+            service_health=[ServiceHealth.from_dict(item) for item in payload.get("service_health", [])],
             recommendations=[Recommendation.from_dict(item) for item in payload["recommendations"]],
             evaluation=EvaluationSummary.from_dict(payload["evaluation"]),
         )
@@ -210,6 +233,29 @@ def _forecast_from_dict(cls, payload: dict[str, Any]) -> "Forecast":
         projected_queue_depth=payload["projected_queue_depth"],
         risk_level=payload["risk_level"],
         rationale=payload["rationale"],
+        current_burn_rate=payload.get("current_burn_rate", 0.0),
+        projected_burn_rate=payload.get("projected_burn_rate", 0.0),
+        budget_pressure=payload.get("budget_pressure", "low"),
+        dominant_slo_signal=payload.get("dominant_slo_signal"),
+    )
+
+
+@classmethod
+def _service_health_from_dict(cls, payload: dict[str, Any]) -> "ServiceHealth":
+    return cls(
+        service=payload["service"],
+        latency_slo_ms=payload["latency_slo_ms"],
+        error_rate_slo_pct=payload["error_rate_slo_pct"],
+        queue_depth_slo=payload["queue_depth_slo"],
+        current_latency_ms=payload["current_latency_ms"],
+        current_error_rate_pct=payload["current_error_rate_pct"],
+        current_queue_depth=payload["current_queue_depth"],
+        current_burn_rate=payload["current_burn_rate"],
+        projected_burn_rate=payload.get("projected_burn_rate", payload["current_burn_rate"]),
+        estimated_error_budget_remaining_pct=payload.get("estimated_error_budget_remaining_pct", 100.0),
+        budget_pressure=payload.get("budget_pressure", "low"),
+        dominant_signal=payload.get("dominant_signal", "p95_latency_ms"),
+        rationale=payload["rationale"],
     )
 
 
@@ -280,6 +326,7 @@ ChangeEvent.from_dict = classmethod(_change_event_from_dict)
 Anomaly.from_dict = classmethod(_anomaly_from_dict)
 Incident.from_dict = classmethod(_incident_from_dict)
 Forecast.from_dict = classmethod(_forecast_from_dict)
+ServiceHealth.from_dict = classmethod(_service_health_from_dict)
 Recommendation.from_dict = classmethod(_recommendation_from_dict)
 DecisionConstraints.from_dict = classmethod(_decision_constraints_from_dict)
 ScenarioMetadata.from_dict = classmethod(_scenario_metadata_from_dict)

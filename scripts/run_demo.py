@@ -136,6 +136,17 @@ def main() -> int:
                 }
                 for incident in report.incidents
             ],
+            "service_health": [
+                {
+                    "service": item.service,
+                    "current_burn_rate": item.current_burn_rate,
+                    "projected_burn_rate": item.projected_burn_rate,
+                    "budget_pressure": item.budget_pressure,
+                    "dominant_signal": item.dominant_signal,
+                    "estimated_error_budget_remaining_pct": item.estimated_error_budget_remaining_pct,
+                }
+                for item in report.service_health
+            ],
             "baselines": report.evaluation.baseline_comparisons,
         }
         if saved_path:
