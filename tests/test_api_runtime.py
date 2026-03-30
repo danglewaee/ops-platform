@@ -51,6 +51,7 @@ class ApiRuntimeTests(unittest.TestCase):
         self.assertTrue(payload["ready"])
         self.assertEqual(payload["backend"], "timescaledb")
         self.assertTrue(payload["tracing_enabled"])
+        self.assertIsNone(payload["error"])
 
 
 if __name__ == "__main__":

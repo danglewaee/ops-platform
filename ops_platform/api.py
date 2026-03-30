@@ -572,6 +572,7 @@ def initialize_app_runtime(app, settings: AppSettings) -> None:
         "audit_log_enabled": settings.audit_log_enabled,
         "tracing_enabled": settings.enable_tracing,
         "otel_service_name": settings.otel_service_name,
+        "error": None,
     }
 
 

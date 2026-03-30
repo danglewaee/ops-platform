@@ -11,6 +11,7 @@ from scripts.smoke_docker_stack import (
     build_compose_base_command,
     capture_compose_output,
     load_env_file,
+    poll_json,
     resolve_api_headers,
     run_smoke_check,
 )
@@ -205,6 +206,28 @@ class SmokeDockerStackTests(unittest.TestCase):
             self.assertEqual(subprocess_calls[1][-1], "ps")
             self.assertEqual(subprocess_calls[2][-2:], ["logs", "--no-color"])
             self.assertEqual(subprocess_calls[3][-2:], ["down", "-v"])
+
+    def test_poll_json_retries_connection_reset_during_startup(self) -> None:
+        attempts = [
+            ConnectionResetError(104, "Connection reset by peer"),
+            {"ready": True},
+        ]
+
+        def _request_json(*_args, **_kwargs):
+            result = attempts.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        with (
+            patch("scripts.smoke_docker_stack.request_json", side_effect=_request_json) as request_json_mock,
+            patch("scripts.smoke_docker_stack.time.sleep") as sleep_mock,
+        ):
+            payload = poll_json("http://127.0.0.1:18080/ready", timeout_seconds=5)
+
+        self.assertEqual(payload["ready"], True)
+        self.assertEqual(request_json_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(1.0)
 
 
 if __name__ == "__main__":

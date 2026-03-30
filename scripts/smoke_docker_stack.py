@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from http.client import HTTPException, RemoteDisconnected
 import json
 import subprocess
 import sys
@@ -180,7 +181,16 @@ def poll_json(url: str, *, headers: dict[str, str] | None = None, timeout_second
     while time.time() < deadline:
         try:
             return request_json(url, headers=headers)
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+        except (
+            HTTPError,
+            URLError,
+            TimeoutError,
+            ValueError,
+            OSError,
+            ConnectionError,
+            HTTPException,
+            RemoteDisconnected,
+        ) as exc:
             last_error = exc
             time.sleep(1.0)
     raise TimeoutError(f"Timed out waiting for {url}: {last_error}")
