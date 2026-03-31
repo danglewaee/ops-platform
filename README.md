@@ -77,6 +77,7 @@ ops-decision-platform/
     timescale_storage.py
   scripts/
     bootstrap_storage.py
+    run_benchmarks.py
     init_timescale.py
     run_api.py
     run_demo.py
@@ -156,6 +157,28 @@ The test suite now covers:
 - shadow-only evaluation when ground truth is unavailable
 - planner constraints and recurring observability config
 - SLO burn-rate and budget-pressure feature signals
+- reproducible benchmark aggregation and Markdown/JSON artifact generation
+
+Run the reproducible benchmark suite:
+
+```powershell
+python .\scripts\run_benchmarks.py --suite scenarios
+```
+
+This writes benchmark artifacts to:
+
+- `artifacts\benchmarks\benchmark_summary.json`
+- `artifacts\benchmarks\benchmark_report.md`
+
+If you want to benchmark persisted streams instead of simulator scenarios:
+
+```powershell
+python .\scripts\run_benchmarks.py `
+  --suite streams `
+  --db-path .\artifacts\ops_platform.sqlite3 `
+  --environment production `
+  --source prometheus
+```
 
 ## Optional API
 
