@@ -165,6 +165,8 @@ Run the reproducible benchmark suite:
 python .\scripts\run_benchmarks.py --suite scenarios
 ```
 
+See [docs/BENCHMARK_CASE_STUDY.md](D:/CODE/Personal%20Website/ops-decision-platform/docs/BENCHMARK_CASE_STUDY.md) for the current deterministic benchmark summary, scenario highlights, and guidance on how to present the results honestly as a shadow-mode case study.
+
 This writes benchmark artifacts to:
 
 - `artifacts\benchmarks\benchmark_summary.json`
@@ -179,6 +181,8 @@ python .\scripts\run_benchmarks.py `
   --environment production `
   --source prometheus
 ```
+
+The same CLI can be pointed at a Timescale/PostgreSQL DSN instead of SQLite when you want to benchmark persisted live-ingest streams from the production-like storage path.
 
 ## Optional API
 

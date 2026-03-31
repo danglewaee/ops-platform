@@ -11,4 +11,5 @@ venv/
 artifacts/serve.out.txt
 artifacts/serve.err.txt
 artifacts/*.sqlite3
+artifacts/benchmarks/
 runs/
