@@ -60,6 +60,9 @@ def build_bundle(scenario_name: str) -> dict[str, object]:
         "recommended_action_match": report.evaluation.recommended_action_match,
         "decision_latency_ms": report.evaluation.decision_latency_ms,
         "root_cause_candidates": report.incidents[0].root_cause_candidates if report.incidents else [],
+        "top_signals": report.incidents[0].top_signals if report.incidents else [],
+        "blast_radius_services": report.incidents[0].blast_radius_services if report.incidents else [],
+        "incident_evidence": [item.summary for item in report.incidents[0].evidence] if report.incidents else [],
         "recommendation": {
             "action": primary_recommendation.action if primary_recommendation else "none",
             "target_service": primary_recommendation.target_service if primary_recommendation else "",
@@ -438,6 +441,8 @@ def render_card(bundle: dict[str, object]) -> str:
     ]
     metric_markup = "\n".join(render_metric(label, value) for label, value in metrics)
     candidates = ", ".join(summary["root_cause_candidates"][:3]) or "n/a"
+    top_signals = ", ".join(summary["top_signals"][:2]) or "n/a"
+    blast_radius = ", ".join(summary["blast_radius_services"][:4]) or "n/a"
     return f"""
       <article class="scenario-card">
         <div class="scenario-top">
@@ -466,7 +471,7 @@ def render_card(bundle: dict[str, object]) -> str:
         </section>
         <div class="footer-row">
           <div class="caption">
-            {summary["alert_reduction_pct"]:.1f}% alert compression | top-2 root cause {status_word(summary["top2_root_cause_hit"])} | our action {status_word(summary["recommended_action_match"])}
+            {summary["alert_reduction_pct"]:.1f}% alert compression | top signals {escape(top_signals)} | blast radius {escape(blast_radius)} | our action {status_word(summary["recommended_action_match"])}
           </div>
           <div class="action">{escape(recommendation["action"].replace("_", " "))}</div>
         </div>
@@ -489,6 +494,8 @@ def render_live_card(bundle: dict[str, object]) -> str:
     ]
     metric_markup = "\n".join(render_metric(label, value) for label, value in metrics)
     candidates = ", ".join(summary["root_cause_candidates"][:3]) or "n/a"
+    top_signals = ", ".join(summary["top_signals"][:2]) or "n/a"
+    blast_radius = ", ".join(summary["blast_radius_services"][:4]) or "n/a"
     return f"""
       <article class="live-card">
         <div class="live-top">
@@ -521,7 +528,7 @@ def render_live_card(bundle: dict[str, object]) -> str:
         </section>
         <div class="footer-row">
           <div class="caption">
-            {summary["source"]} | baseline win {summary["baseline_win_rate_pct"]:.1f}% | latency protection {summary["latency_protection_pct"]:.1f}% | stability {summary["action_stability_pct"]:.1f}%
+            {summary["source"]} | top signals {escape(top_signals)} | blast radius {escape(blast_radius)} | baseline win {summary["baseline_win_rate_pct"]:.1f}% | latency protection {summary["latency_protection_pct"]:.1f}%
           </div>
           <div class="action">{escape(recommendation["action"].replace("_", " "))}</div>
         </div>
@@ -679,6 +686,9 @@ def _build_live_stream_bundle(stream: dict[str, Any], *, db_path: str | Path | N
         "baseline_win_rate_pct": report.evaluation.baseline_win_rate_pct if report else 0.0,
         "latency_protection_pct": report.evaluation.latency_protection_pct if report else 0.0,
         "root_cause_candidates": incident.root_cause_candidates if incident else [],
+        "top_signals": incident.top_signals if incident else [],
+        "blast_radius_services": incident.blast_radius_services if incident else [],
+        "incident_evidence": [item.summary for item in incident.evidence] if incident else [],
         "recommendation": {
             "action": recommendation.action if recommendation else "none",
             "target_service": recommendation.target_service if recommendation else "",

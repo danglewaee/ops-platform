@@ -54,6 +54,30 @@ def _report_summary(report):
             "target_service": recommendation.target_service if recommendation else None,
             "confidence": recommendation.confidence if recommendation else None,
         },
+        "service_health": [
+            {
+                "service": item.service,
+                "current_burn_rate": item.current_burn_rate,
+                "projected_burn_rate": item.projected_burn_rate,
+                "budget_pressure": item.budget_pressure,
+                "dominant_signal": item.dominant_signal,
+                "estimated_error_budget_remaining_pct": item.estimated_error_budget_remaining_pct,
+            }
+            for item in report.service_health
+        ],
+        "incidents": [
+            {
+                "incident_id": incident.incident_id,
+                "severity": incident.severity,
+                "summary": incident.summary,
+                "root_cause_candidates": incident.root_cause_candidates,
+                "top_signals": incident.top_signals,
+                "blast_radius_services": incident.blast_radius_services,
+                "evidence": [asdict(item) for item in incident.evidence],
+                "graph_edges": [asdict(item) for item in incident.graph_edges],
+            }
+            for incident in report.incidents
+        ],
         "baselines": report.evaluation.baseline_comparisons,
     }
 

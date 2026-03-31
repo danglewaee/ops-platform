@@ -30,7 +30,7 @@ The current prototype has six layers:
 3. `detection`
    - Finds abnormal behavior from rolling baselines and deviation scores.
 4. `incident_engine`
-   - Clusters related anomalies into incidents and ranks likely root causes.
+   - Clusters related anomalies into incidents, builds a lightweight incident graph, and ranks likely root causes with evidence.
 5. `forecasting`
    - Estimates short-horizon demand, SLO burn, and latency risk.
 6. `feature_builder`
@@ -43,6 +43,7 @@ It now also includes a production-like persistence layer for replayable telemetr
 - SQLite-backed stream storage for normalized metrics and change events
 - API endpoints to ingest bundles, inspect stored streams, and evaluate them later in shadow mode
 - richer evaluation metrics such as latency protection, avoided overprovisioning, baseline win rate, and action stability
+- explainable incident output with top signals, blast radius, dependency edges, and RCA evidence
 
 The current scenario set covers:
 

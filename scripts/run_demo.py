@@ -136,6 +136,25 @@ def main() -> int:
                 }
                 for incident in report.incidents
             ],
+            "incidents": [
+                {
+                    "incident_id": incident.incident_id,
+                    "severity": incident.severity,
+                    "summary": incident.summary,
+                    "top_signals": incident.top_signals,
+                    "blast_radius_services": incident.blast_radius_services,
+                    "evidence": [item.summary for item in incident.evidence],
+                    "graph_edges": [
+                        {
+                            "source_service": edge.source_service,
+                            "target_service": edge.target_service,
+                            "relation": edge.relation,
+                        }
+                        for edge in incident.graph_edges
+                    ],
+                }
+                for incident in report.incidents
+            ],
             "service_health": [
                 {
                     "service": item.service,

@@ -63,6 +63,13 @@ Compresses anomalies into incidents and ranks likely root causes using:
 - recent change events
 - anomaly severity
 
+It now also emits:
+
+- top contributing signals
+- incident blast radius
+- dependency and impact edges
+- explainable RCA evidence items
+
 ### `forecasting.py`
 
 Looks 5 to 15 minutes ahead using recent trend windows and projects:

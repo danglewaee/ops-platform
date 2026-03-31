@@ -39,6 +39,7 @@ class PipelineScenarioTests(unittest.TestCase):
         self.assertEqual(from_streams.metadata.name, direct.metadata.name)
         self.assertEqual(from_streams.recommendations[0].action, direct.recommendations[0].action)
         self.assertEqual(from_streams.incidents[0].root_cause_candidates[:2], direct.incidents[0].root_cause_candidates[:2])
+        self.assertEqual(from_streams.incidents[0].top_signals, direct.incidents[0].top_signals)
 
     def test_transient_noise_holds_steady(self) -> None:
         report = run_pipeline("transient_noise", seed=7)
@@ -61,6 +62,8 @@ class PipelineScenarioTests(unittest.TestCase):
         self.assertEqual(report.evaluation.evaluation_mode, "ground_truth")
         self.assertIn("naive_reroute", baseline_policies)
         self.assertTrue(report.service_health)
+        self.assertTrue(report.incidents[0].evidence)
+        self.assertTrue(report.incidents[0].graph_edges)
         self.assertGreater(report.forecasts[0].projected_burn_rate, 0.0)
         self.assertGreater(report.evaluation.latency_protection_pct, 0.0)
         self.assertGreaterEqual(report.evaluation.baseline_win_rate_pct, 0.0)

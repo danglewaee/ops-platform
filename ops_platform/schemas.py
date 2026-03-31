@@ -40,6 +40,23 @@ class Anomaly:
 
 
 @dataclass(slots=True)
+class IncidentEvidence:
+    evidence_type: str
+    service: str
+    signal: str | None
+    summary: str
+    weight: float
+
+
+@dataclass(slots=True)
+class IncidentGraphEdge:
+    source_service: str
+    target_service: str
+    relation: str
+    weight: float
+
+
+@dataclass(slots=True)
 class Incident:
     incident_id: str
     opened_at: datetime
@@ -49,6 +66,10 @@ class Incident:
     trigger_event: str | None
     anomaly_count: int
     summary: str
+    blast_radius_services: list[str] = field(default_factory=list)
+    top_signals: list[str] = field(default_factory=list)
+    evidence: list[IncidentEvidence] = field(default_factory=list)
+    graph_edges: list[IncidentGraphEdge] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -220,6 +241,10 @@ def _incident_from_dict(cls, payload: dict[str, Any]) -> "Incident":
         trigger_event=payload.get("trigger_event"),
         anomaly_count=payload["anomaly_count"],
         summary=payload["summary"],
+        blast_radius_services=payload.get("blast_radius_services", []),
+        top_signals=payload.get("top_signals", []),
+        evidence=[IncidentEvidence.from_dict(item) for item in payload.get("evidence", [])],
+        graph_edges=[IncidentGraphEdge.from_dict(item) for item in payload.get("graph_edges", [])],
     )
 
 
@@ -237,6 +262,27 @@ def _forecast_from_dict(cls, payload: dict[str, Any]) -> "Forecast":
         projected_burn_rate=payload.get("projected_burn_rate", 0.0),
         budget_pressure=payload.get("budget_pressure", "low"),
         dominant_slo_signal=payload.get("dominant_slo_signal"),
+    )
+
+
+@classmethod
+def _incident_evidence_from_dict(cls, payload: dict[str, Any]) -> "IncidentEvidence":
+    return cls(
+        evidence_type=payload["evidence_type"],
+        service=payload["service"],
+        signal=payload.get("signal"),
+        summary=payload["summary"],
+        weight=payload["weight"],
+    )
+
+
+@classmethod
+def _incident_graph_edge_from_dict(cls, payload: dict[str, Any]) -> "IncidentGraphEdge":
+    return cls(
+        source_service=payload["source_service"],
+        target_service=payload["target_service"],
+        relation=payload["relation"],
+        weight=payload["weight"],
     )
 
 
@@ -324,6 +370,8 @@ def _evaluation_summary_from_dict(cls, payload: dict[str, Any]) -> "EvaluationSu
 MetricSample.from_dict = classmethod(_metric_sample_from_dict)
 ChangeEvent.from_dict = classmethod(_change_event_from_dict)
 Anomaly.from_dict = classmethod(_anomaly_from_dict)
+IncidentEvidence.from_dict = classmethod(_incident_evidence_from_dict)
+IncidentGraphEdge.from_dict = classmethod(_incident_graph_edge_from_dict)
 Incident.from_dict = classmethod(_incident_from_dict)
 Forecast.from_dict = classmethod(_forecast_from_dict)
 ServiceHealth.from_dict = classmethod(_service_health_from_dict)
