@@ -1,6 +1,10 @@
 # Ops Decision Platform
 
-A standalone prototype for a shadow-mode operational decision layer:
+A shadow-mode incident decision copilot for distributed systems.
+
+It ingests noisy telemetry, detects anomalies, clusters incidents, ranks likely root causes with evidence, forecasts near-term risk, recommends safer scaling or routing actions, and evaluates those actions against reactive baselines before anything touches production.
+
+At a glance:
 
 - ingest telemetry
 - detect anomalies
@@ -8,8 +12,16 @@ A standalone prototype for a shadow-mode operational decision layer:
 - forecast short-term load
 - recommend safer routing or scaling actions
 - evaluate against simple reactive baselines
+- persist replayable live streams in SQLite or TimescaleDB
+- benchmark decisions with deterministic scenario suites and dashboard artifacts
 
 This project intentionally keeps the scope tight. It is meant to be the first working version of a stronger flagship systems project, not a bloated "AI ops" demo with too many moving parts.
+
+The current deterministic benchmark reaches:
+
+- `100%` top-2 RCA accuracy
+- `100%` action match across `5/5` built-in scenarios
+- `0%` false action rate
 
 ## Why this exists
 
@@ -21,7 +33,7 @@ This prototype explores one concrete question:
 
 ## MVP scope
 
-The current prototype has six layers:
+The current prototype has seven layers:
 
 1. `simulator`
    - Generates realistic-but-controlled failure scenarios.
@@ -59,6 +71,8 @@ The current scenario set covers:
 ops-decision-platform/
   docs/
     ARCHITECTURE.md
+    BENCHMARK_CASE_STUDY.md
+    PORTFOLIO_COPY.md
   ops_platform/
     __init__.py
     api.py
@@ -69,6 +83,7 @@ ops-decision-platform/
     incident_engine.py
     planner.py
     pipeline.py
+    release_artifacts.py
     scenarios.py
     schemas.py
     settings.py
@@ -77,6 +92,7 @@ ops-decision-platform/
     timescale_storage.py
   scripts/
     bootstrap_storage.py
+    build_release_artifacts.py
     run_benchmarks.py
     init_timescale.py
     run_api.py
@@ -165,7 +181,7 @@ Run the reproducible benchmark suite:
 python .\scripts\run_benchmarks.py --suite scenarios
 ```
 
-See [docs/BENCHMARK_CASE_STUDY.md](D:/CODE/Personal%20Website/ops-decision-platform/docs/BENCHMARK_CASE_STUDY.md) for the current deterministic benchmark summary, scenario highlights, and guidance on how to present the results honestly as a shadow-mode case study.
+See [docs/BENCHMARK_CASE_STUDY.md](docs/BENCHMARK_CASE_STUDY.md) for the current deterministic benchmark summary, scenario highlights, and guidance on how to present the results honestly as a shadow-mode case study.
 
 This writes benchmark artifacts to:
 
@@ -183,6 +199,27 @@ python .\scripts\run_benchmarks.py `
 ```
 
 The same CLI can be pointed at a Timescale/PostgreSQL DSN instead of SQLite when you want to benchmark persisted live-ingest streams from the production-like storage path.
+
+Build a release-ready demo bundle for portfolio or interview use:
+
+```powershell
+python .\scripts\build_release_artifacts.py
+```
+
+This writes:
+
+- `artifacts\release\summary.json`
+- `artifacts\release\live_summary.json`
+- `artifacts\release\dashboard.html`
+- `artifacts\release\benchmarks\benchmark_summary.json`
+- `artifacts\release\benchmarks\benchmark_report.md`
+- `artifacts\release\release_overview.md`
+- `artifacts\release\release_manifest.json`
+
+For public-facing copy, use:
+
+- [docs/BENCHMARK_CASE_STUDY.md](docs/BENCHMARK_CASE_STUDY.md)
+- [docs/PORTFOLIO_COPY.md](docs/PORTFOLIO_COPY.md)
 
 ## Optional API
 
