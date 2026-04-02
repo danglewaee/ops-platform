@@ -33,6 +33,18 @@ def build_release_artifacts(
         decision_constraints=decision_constraints,
     )
     benchmark_json_path, benchmark_markdown_path = write_benchmark_artifacts(benchmark_dir, benchmark_payload)
+    v2_testbed_payload = run_benchmark_suite(
+        seed=seed,
+        planner_mode=planner_mode,
+        decision_constraints=decision_constraints,
+        testbed_profile="boutique_like",
+    )
+    v2_benchmark_json_path, v2_benchmark_markdown_path = write_benchmark_artifacts(
+        benchmark_dir,
+        v2_testbed_payload,
+        markdown_name="boutique_like_benchmark_report.md",
+        json_name="boutique_like_benchmark_summary.json",
+    )
 
     manifest: dict[str, Any] = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -47,15 +59,22 @@ def build_release_artifacts(
             "suite_name": benchmark_payload["suite_name"],
             "summary": benchmark_payload["summary"],
         },
+        "v2_testbed_benchmark": {
+            "suite_name": v2_testbed_payload["suite_name"],
+            "summary": v2_testbed_payload["summary"],
+        },
         "artifacts": {
             "summary_json": str(summary_path),
             "live_summary_json": str(live_summary_path),
             "dashboard_html": str(dashboard_path),
             "benchmark_json": str(benchmark_json_path),
             "benchmark_markdown": str(benchmark_markdown_path),
+            "v2_benchmark_json": str(v2_benchmark_json_path),
+            "v2_benchmark_markdown": str(v2_benchmark_markdown_path),
         },
         "public_docs": {
             "benchmark_case_study": str(ROOT / "docs" / "BENCHMARK_CASE_STUDY.md"),
+            "v2_testbed_case_study": str(ROOT / "docs" / "TESTBED_V2_CASE_STUDY.md"),
             "portfolio_copy": str(ROOT / "docs" / "PORTFOLIO_COPY.md"),
         },
     }
@@ -72,6 +91,7 @@ def build_release_artifacts(
 
 def render_release_overview(manifest: dict[str, Any]) -> str:
     summary = manifest["benchmark"]["summary"]
+    v2_summary = manifest["v2_testbed_benchmark"]["summary"]
     artifacts = manifest["artifacts"]
     public_docs = manifest["public_docs"]
     lines = [
@@ -80,6 +100,8 @@ def render_release_overview(manifest: dict[str, Any]) -> str:
         "This bundle packages the current dashboard and benchmark artifacts for the Ops Decision Platform.",
         "",
         "## Verified snapshot",
+        "",
+        "### Core benchmark",
         "",
         f"- Deterministic cases: {summary['case_count']}",
         f"- Top-1 RCA accuracy: {summary['top1_root_cause_accuracy_pct']:.1f}%",
@@ -90,17 +112,31 @@ def render_release_overview(manifest: dict[str, Any]) -> str:
         f"- Average latency protection: {summary['average_latency_protection_pct']:.1f}%",
         f"- Average baseline win rate: {summary['average_baseline_win_rate_pct']:.1f}%",
         "",
+        "### V2 boutique-like benchmark",
+        "",
+        f"- Deterministic cases: {v2_summary['case_count']}",
+        f"- Top-1 RCA accuracy: {v2_summary['top1_root_cause_accuracy_pct']:.1f}%",
+        f"- Top-2 RCA accuracy: {v2_summary['top2_root_cause_accuracy_pct']:.1f}%",
+        f"- Action match rate: {v2_summary['action_match_rate_pct']:.1f}%",
+        f"- False action rate: {v2_summary['false_action_rate_pct']:.1f}%",
+        f"- Average first actionable minute: {v2_summary['average_first_actionable_minute']:.1f}",
+        f"- Average latency protection: {v2_summary['average_latency_protection_pct']:.1f}%",
+        f"- Average baseline win rate: {v2_summary['average_baseline_win_rate_pct']:.1f}%",
+        "",
         "## Generated artifacts",
         "",
         f"- Dashboard summary JSON: `{artifacts['summary_json']}`",
         f"- Live summary JSON: `{artifacts['live_summary_json']}`",
         f"- Dashboard HTML: `{artifacts['dashboard_html']}`",
-        f"- Benchmark JSON: `{artifacts['benchmark_json']}`",
-        f"- Benchmark Markdown: `{artifacts['benchmark_markdown']}`",
+        f"- Core benchmark JSON: `{artifacts['benchmark_json']}`",
+        f"- Core benchmark Markdown: `{artifacts['benchmark_markdown']}`",
+        f"- V2 benchmark JSON: `{artifacts['v2_benchmark_json']}`",
+        f"- V2 benchmark Markdown: `{artifacts['v2_benchmark_markdown']}`",
         "",
         "## Presentation docs",
         "",
         f"- Benchmark case study: `{public_docs['benchmark_case_study']}`",
+        f"- V2 testbed case study: `{public_docs['v2_testbed_case_study']}`",
         f"- Resume and website copy: `{public_docs['portfolio_copy']}`",
         "",
         "## Rebuild command",

@@ -65,6 +65,11 @@ The current scenario set covers:
 - service degradation (`memory_leak`)
 - transient noise where the right decision is to do nothing (`transient_noise`)
 
+V2 also includes a production-style testbed profile:
+
+- `boutique_like` for storefront-style microservices with `frontend`, `checkout`, `payment`, `cart`, `recommendation`, `email`, `shipping`, `currency`, and `redis`
+- scenario pack: `boutique_frontend_spike`, `boutique_bad_canary`, `boutique_payment_timeout`, `boutique_email_backlog`, `boutique_cache_jitter`
+
 ## Folder structure
 
 ```text
@@ -89,6 +94,7 @@ ops-decision-platform/
     settings.py
     simulator.py
     telemetry.py
+    testbed.py
     timescale_storage.py
   scripts/
     bootstrap_storage.py
@@ -129,6 +135,18 @@ Run the full scenario matrix:
 
 ```powershell
 python .\scripts\run_demo.py --matrix
+```
+
+List scenarios for a specific testbed profile:
+
+```powershell
+python .\scripts\run_demo.py --testbed-profile boutique_like --list-scenarios
+```
+
+Run a V2 boutique-like testbed scenario:
+
+```powershell
+python .\scripts\run_demo.py --testbed-profile boutique_like --scenario boutique_payment_timeout
 ```
 
 Build the lightweight evaluation dashboard:
@@ -181,7 +199,14 @@ Run the reproducible benchmark suite:
 python .\scripts\run_benchmarks.py --suite scenarios
 ```
 
+Run the V2 boutique-like benchmark pack:
+
+```powershell
+python .\scripts\run_benchmarks.py --suite scenarios --testbed-profile boutique_like
+```
+
 See [docs/BENCHMARK_CASE_STUDY.md](docs/BENCHMARK_CASE_STUDY.md) for the current deterministic benchmark summary, scenario highlights, and guidance on how to present the results honestly as a shadow-mode case study.
+See [docs/TESTBED_V2_CASE_STUDY.md](docs/TESTBED_V2_CASE_STUDY.md) for the V2 boutique-like microservice testbed benchmark pack.
 
 This writes benchmark artifacts to:
 
@@ -213,12 +238,15 @@ This writes:
 - `artifacts\release\dashboard.html`
 - `artifacts\release\benchmarks\benchmark_summary.json`
 - `artifacts\release\benchmarks\benchmark_report.md`
+- `artifacts\release\benchmarks\boutique_like_benchmark_summary.json`
+- `artifacts\release\benchmarks\boutique_like_benchmark_report.md`
 - `artifacts\release\release_overview.md`
 - `artifacts\release\release_manifest.json`
 
 For public-facing copy, use:
 
 - [docs/BENCHMARK_CASE_STUDY.md](docs/BENCHMARK_CASE_STUDY.md)
+- [docs/TESTBED_V2_CASE_STUDY.md](docs/TESTBED_V2_CASE_STUDY.md)
 - [docs/PORTFOLIO_COPY.md](docs/PORTFOLIO_COPY.md)
 
 ## Optional API

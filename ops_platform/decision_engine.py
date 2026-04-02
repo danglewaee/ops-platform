@@ -127,7 +127,9 @@ def _choose_action(
     forecast: Forecast | None,
     health: ServiceHealth | None,
 ) -> tuple[str, str, float, float, str, float]:
-    if incident.trigger_event and "deploy" in incident.trigger_event.lower():
+    trigger_text = incident.trigger_event.lower() if incident.trigger_event else ""
+
+    if any(keyword in trigger_text for keyword in ("deploy", "release", "canary")):
         return (
             "rollback_candidate",
             "A recent change event lines up with the incident window, so rollback is the safest shadow-mode recommendation.",
@@ -135,6 +137,30 @@ def _choose_action(
             -28.0,
             "reduce instability quickly",
             0.86,
+        )
+
+    if any(keyword in trigger_text for keyword in ("timeout", "backend", "dependency")) and incident.severity in {"high", "critical"}:
+        return (
+            "reroute_traffic",
+            "A failing dependency path is contaminating the user-facing request chain, so rerouting is safer than blindly scaling the hot path.",
+            3.5,
+            -16.0,
+            "isolate dependency failure",
+            0.8,
+        )
+
+    if (
+        any(keyword in trigger_text for keyword in ("jitter", "transient", "short-lived", "short lived"))
+        and incident.severity in {"low", "medium"}
+        and (not health or health.projected_burn_rate < 1.5)
+    ):
+        return (
+            "hold_steady",
+            "The incident still looks like a short-lived jitter event, so avoiding unnecessary action churn is safer than reacting to a local wobble.",
+            0.0,
+            -6.0,
+            "avoid transient action churn",
+            0.71,
         )
 
     if incident.severity in {"high", "critical"} and "auth" in incident.root_cause_candidates:
@@ -235,7 +261,8 @@ def _candidate_recommendations(
         "hold_steady": _make_hold_action(target, incident, forecast),
     }
 
-    if incident.trigger_event and "deploy" in incident.trigger_event.lower():
+    trigger_text = incident.trigger_event.lower() if incident.trigger_event else ""
+    if any(keyword in trigger_text for keyword in ("deploy", "release", "canary")):
         candidates["rollback_candidate"] = _make_rollback_action(target, incident)
 
     if forecast and forecast.risk_level in {"medium", "high"}:

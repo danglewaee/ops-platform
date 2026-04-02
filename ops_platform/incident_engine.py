@@ -124,7 +124,7 @@ def _find_trigger_event(cluster: list[Anomaly], events: list[ChangeEvent]) -> Ch
     cluster_services = {anomaly.service for anomaly in cluster}
 
     for event in events:
-        if event.service in cluster_services and first_step - 1 <= event.step <= last_step:
+        if event.service in cluster_services and first_step - 2 <= event.step <= last_step:
             return event
     return None
 

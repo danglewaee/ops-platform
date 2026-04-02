@@ -99,8 +99,13 @@ def run_pipeline(
     seed: int = 7,
     planner_mode: str = "heuristic",
     decision_constraints: DecisionConstraints | None = None,
+    testbed_profile: str | None = None,
 ) -> PipelineReport:
-    telemetry, events, metadata = generate_scenario(scenario_name, seed=seed)
+    telemetry, events, metadata = generate_scenario(
+        scenario_name,
+        seed=seed,
+        testbed_profile=testbed_profile,
+    )
     return run_pipeline_from_streams(
         telemetry,
         events,
@@ -116,8 +121,13 @@ def generate_and_run_pipeline(
     seed: int = 7,
     planner_mode: str = "heuristic",
     decision_constraints: DecisionConstraints | None = None,
+    testbed_profile: str | None = None,
 ) -> tuple[list[MetricSample], list[ChangeEvent], ScenarioMetadata, PipelineReport]:
-    telemetry, events, metadata = generate_scenario(scenario_name, seed=seed)
+    telemetry, events, metadata = generate_scenario(
+        scenario_name,
+        seed=seed,
+        testbed_profile=testbed_profile,
+    )
     report = run_pipeline_from_streams(
         telemetry,
         events,
@@ -133,12 +143,13 @@ def run_scenario_matrix(
     seed: int = 7,
     planner_mode: str = "heuristic",
     decision_constraints: DecisionConstraints | None = None,
+    testbed_profile: str | None = None,
 ) -> list[PipelineReport]:
     return [
         run_pipeline_from_streams(
-            *generate_scenario(name, seed=seed),
+            *generate_scenario(name, seed=seed, testbed_profile=testbed_profile),
             planner_mode=planner_mode,
             decision_constraints=decision_constraints,
         )
-        for name in list_scenarios()
+        for name in list_scenarios(profile=testbed_profile)
     ]

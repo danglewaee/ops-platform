@@ -136,6 +136,7 @@ class ScenarioMetadata:
     expected_action: str
     impacted_services: list[str]
     category: str = "systems"
+    testbed_profile: str = "core"
 
 
 @dataclass(slots=True)
@@ -328,6 +329,7 @@ def _scenario_metadata_from_dict(cls, payload: dict[str, Any]) -> "ScenarioMetad
         expected_action=payload["expected_action"],
         impacted_services=payload["impacted_services"],
         category=payload.get("category", "systems"),
+        testbed_profile=payload.get("testbed_profile", "core"),
     )
 
 

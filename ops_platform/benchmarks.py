@@ -7,7 +7,7 @@ from typing import Any
 
 from .pipeline import run_pipeline, run_pipeline_from_streams
 from .schemas import DecisionConstraints, PipelineReport, ScenarioMetadata
-from .scenarios import SCENARIOS, list_scenarios
+from .scenarios import list_scenarios
 from .storage import list_ingested_streams, load_ingested_stream
 
 
@@ -17,24 +17,28 @@ def run_benchmark_suite(
     planner_mode: str = "heuristic",
     decision_constraints: DecisionConstraints | None = None,
     scenario_names: list[str] | None = None,
+    testbed_profile: str = "core",
 ) -> dict[str, Any]:
-    selected = scenario_names or list_scenarios()
+    selected = scenario_names or list_scenarios(profile=testbed_profile)
     reports = [
         run_pipeline(
             scenario_name,
             seed=seed,
             planner_mode=planner_mode,
             decision_constraints=decision_constraints,
+            testbed_profile=testbed_profile,
         )
         for scenario_name in selected
     ]
+    suite_name = "deterministic-scenarios" if testbed_profile == "core" else f"{testbed_profile}-scenarios"
     return _build_suite_payload(
-        suite_name="deterministic-scenarios",
-        suite_description="Deterministic simulator benchmark across built-in failure scenarios.",
+        suite_name=suite_name,
+        suite_description=f"Deterministic simulator benchmark across the '{testbed_profile}' scenario pack.",
         reports=reports,
         suite_metadata={
             "seed": seed,
             "planner_mode": planner_mode,
+            "testbed_profile": testbed_profile,
             "scenario_names": selected,
         },
     )
@@ -181,6 +185,7 @@ def _case_payload(report: PipelineReport) -> dict[str, Any]:
 
     return {
         "scenario": report.metadata.name,
+        "testbed_profile": report.metadata.testbed_profile,
         "description": report.metadata.description,
         "category": report.metadata.category,
         "root_cause": report.metadata.root_cause,

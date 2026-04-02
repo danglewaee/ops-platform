@@ -35,6 +35,16 @@ Defines:
 - available scenarios
 - service dependency graph
 - scenario ground truth
+- scenario packs for both the compact `core` profile and the V2 `boutique_like` microservice testbed
+
+### `testbed.py`
+
+Defines:
+
+- named testbed profiles
+- service topology per profile
+- baseline telemetry envelopes per profile
+- a production-style boutique-like workload profile for V2 benchmarking
 
 ### `simulator.py`
 
@@ -43,6 +53,7 @@ Produces:
 - metric samples
 - change events
 - scenario metadata
+- deterministic streams for both the flagship core pack and the V2 boutique-like testbed pack
 
 ### `detection.py`
 

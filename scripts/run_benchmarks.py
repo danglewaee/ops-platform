@@ -15,6 +15,7 @@ from ops_platform.benchmarks import (
     write_benchmark_artifacts,
 )
 from ops_platform.schemas import DecisionConstraints
+from ops_platform.testbed import list_testbed_profiles
 
 
 def main() -> int:
@@ -41,6 +42,12 @@ def main() -> int:
     parser.add_argument("--limit-streams", type=int, help="Optional limit for persisted stream benchmarks.")
     parser.add_argument("--environment", help="Optional persisted stream environment filter.")
     parser.add_argument("--source", help="Optional persisted stream source filter.")
+    parser.add_argument(
+        "--testbed-profile",
+        choices=list_testbed_profiles(),
+        default="core",
+        help="Scenario pack to benchmark when suite includes simulator scenarios.",
+    )
     parser.add_argument("--max-total-cost-delta-pct", type=float, help="Optional planner cost budget.")
     parser.add_argument("--full", action="store_true", help="Print the entire suite payload instead of a short summary.")
     args = parser.parse_args()
@@ -58,6 +65,7 @@ def main() -> int:
             seed=args.seed,
             planner_mode=args.planner_mode,
             decision_constraints=constraints,
+            testbed_profile=args.testbed_profile,
         )
         json_path, markdown_path = write_benchmark_artifacts(output_dir, payload)
     elif args.suite == "streams":
@@ -80,6 +88,7 @@ def main() -> int:
             seed=args.seed,
             planner_mode=args.planner_mode,
             decision_constraints=constraints,
+            testbed_profile=args.testbed_profile,
         )
         stream_payload = benchmark_persisted_streams(
             db_path=args.db_path,

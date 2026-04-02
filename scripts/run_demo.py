@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 from ops_platform.pipeline import generate_and_run_pipeline, run_pipeline, run_scenario_matrix
 from ops_platform.schemas import DecisionConstraints
 from ops_platform.scenarios import list_scenarios
+from ops_platform.testbed import list_testbed_profiles
 from ops_platform.storage import save_run_bundle
 
 
@@ -19,9 +20,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Ops Decision Platform demo pipeline.")
     parser.add_argument(
         "--scenario",
-        default="traffic_spike",
-        choices=list_scenarios(),
-        help="Scenario to simulate.",
+        help="Scenario to simulate. Defaults to the first scenario in the selected testbed profile.",
+    )
+    parser.add_argument(
+        "--testbed-profile",
+        choices=list_testbed_profiles(),
+        default="core",
+        help="Scenario profile to run. Use 'boutique_like' for the production-style microservice testbed pack.",
+    )
+    parser.add_argument(
+        "--list-scenarios",
+        action="store_true",
+        help="Print the scenarios available for the selected testbed profile and exit.",
     )
     parser.add_argument(
         "--matrix",
@@ -56,6 +66,13 @@ def main() -> int:
         help="Optional total positive cost budget across selected actions.",
     )
     args = parser.parse_args()
+    if args.list_scenarios:
+        print(json.dumps({"testbed_profile": args.testbed_profile, "scenarios": list_scenarios(profile=args.testbed_profile)}, indent=2))
+        return 0
+
+    scenario_name = args.scenario or (
+        "traffic_spike" if args.testbed_profile == "core" else list_scenarios(profile=args.testbed_profile)[0]
+    )
     decision_constraints = (
         DecisionConstraints(max_total_cost_delta_pct=args.max_total_cost_delta_pct)
         if args.max_total_cost_delta_pct is not None
@@ -67,10 +84,12 @@ def main() -> int:
             seed=args.seed,
             planner_mode=args.planner_mode,
             decision_constraints=decision_constraints,
+            testbed_profile=args.testbed_profile,
         )
         matrix = [
             {
                 "scenario": report.metadata.name,
+                "testbed_profile": report.metadata.testbed_profile,
                 "category": report.metadata.category,
                 "root_cause": report.metadata.root_cause,
                 "expected_action": report.metadata.expected_action,
@@ -88,18 +107,20 @@ def main() -> int:
 
     if args.save_run:
         telemetry, events, metadata, report = generate_and_run_pipeline(
-            args.scenario,
+            scenario_name,
             seed=args.seed,
             planner_mode=args.planner_mode,
             decision_constraints=decision_constraints,
+            testbed_profile=args.testbed_profile,
         )
         saved_path = save_run_bundle(telemetry, events, metadata, report, seed=args.seed)
     else:
         report = run_pipeline(
-            args.scenario,
+            scenario_name,
             seed=args.seed,
             planner_mode=args.planner_mode,
             decision_constraints=decision_constraints,
+            testbed_profile=args.testbed_profile,
         )
         saved_path = None
     if args.full:
@@ -107,6 +128,7 @@ def main() -> int:
     else:
         summary = {
             "scenario": report.metadata.name,
+            "testbed_profile": report.metadata.testbed_profile,
             "root_cause": report.metadata.root_cause,
             "expected_action": report.metadata.expected_action,
             "incident_count": report.evaluation.incident_count,
