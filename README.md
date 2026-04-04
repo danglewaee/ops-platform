@@ -431,6 +431,7 @@ The repository now includes two container paths:
 
 - `docker-compose.smoke.yml` for a fast SQLite-backed API smoke stack used by CI
 - `docker-compose.yml` for the fuller production-like stack with `timescaledb`, `redis`, `otel-collector`, and one-shot `timescale-init`
+- `docker-compose.deploy.yml` for a single-host deployment bundle with `caddy`, `api`, `timescaledb`, `redis`, and an optional recurring worker profile
 
 The full stack includes:
 
@@ -475,6 +476,23 @@ The repository also includes:
 
 - [.github/workflows/compose-smoke.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/compose-smoke.yml) for the default SQLite-backed CI smoke path
 - [.github/workflows/timescale-integration.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/timescale-integration.yml) for manual full-stack Timescale integration runs with uploaded compose logs and summaries
+- [.github/workflows/deploy-config-validate.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/deploy-config-validate.yml) for deploy-bundle config validation across the base stack and `worker` profile
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the deployable single-host bundle with reverse proxy and optional recurring worker
+
+For deploy packaging, start from:
+
+```powershell
+Copy-Item .\.env.deploy.example .\.env.deploy
+Copy-Item .\deploy\recurring_pull.example.toml .\deploy\recurring_pull.toml
+python .\scripts\check_deploy_bundle.py --env-file .\.env.deploy --full
+docker compose --env-file .\.env.deploy -f .\docker-compose.deploy.yml up --build -d
+```
+
+If you want the recurring Prometheus worker too:
+
+```powershell
+docker compose --env-file .\.env.deploy -f .\docker-compose.deploy.yml --profile worker up --build -d
+```
 
 `OPS_PLATFORM_API_PORT` controls the port the app listens on inside the container. `OPS_PLATFORM_HOST_PORT` controls the host-side published port. For smoke runs, keep the internal port at `8000` and move the host port if `8000` is already occupied.
 

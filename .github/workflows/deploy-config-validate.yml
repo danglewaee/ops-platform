@@ -1,0 +1,37 @@
+name: Deploy Config Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deploy-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare deploy environment
+        shell: bash
+        run: |
+          cp .env.deploy.example .env.deploy.ci
+          cp deploy/recurring_pull.example.toml deploy/recurring_pull.toml
+
+      - name: Validate deploy bundle settings
+        run: python scripts/check_deploy_bundle.py --env-file .env.deploy.ci --full
+
+      - name: Validate deploy compose config
+        run: docker compose --env-file .env.deploy.ci -f docker-compose.deploy.yml config
+
+      - name: Validate deploy compose config with worker
+        run: docker compose --env-file .env.deploy.ci -f docker-compose.deploy.yml --profile worker config

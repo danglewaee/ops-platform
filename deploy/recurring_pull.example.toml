@@ -1,0 +1,54 @@
+[metrics.request_rate]
+query = "sum(rate(http_requests_total{job=\"ops-platform\"}[5m])) by (service)"
+service_label = "service"
+metric = "request_rate"
+unit = "req/s"
+
+[metrics.p95_latency_ms]
+query = "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"ops-platform\"}[5m])) by (le, service)) * 1000"
+service_label = "service"
+metric = "p95_latency_ms"
+unit = "ms"
+
+[metrics.error_rate_pct]
+query = "sum(rate(http_requests_total{job=\"ops-platform\",status=~\"5..\"}[5m])) by (service) / clamp_min(sum(rate(http_requests_total{job=\"ops-platform\"}[5m])) by (service), 0.001) * 100"
+service_label = "service"
+metric = "error_rate_pct"
+unit = "%"
+
+[metrics.queue_depth]
+query = "max(queue_depth{job=\"ops-platform\"}) by (service)"
+service_label = "service"
+metric = "queue_depth"
+unit = "messages"
+
+[metrics.cpu_pct]
+query = "avg(process_cpu_percent{job=\"ops-platform\"}) by (service)"
+service_label = "service"
+metric = "cpu_pct"
+unit = "%"
+
+[recurring]
+base_url = "http://prometheus:9090"
+lookback_minutes = 30
+source = "prometheus"
+environment = "production"
+stream_prefix = "deploy-prod"
+name_prefix = "deploy-prod"
+description = "Production-like recurring pull evaluated in shadow mode."
+evaluate = true
+planner_mode = "heuristic"
+
+[decision]
+max_total_cost_delta_pct = 12
+max_cost_delta_pct_per_action = 10
+
+[observability]
+enable_tracing = true
+service_name = "ops-decision-platform-recurring"
+otlp_endpoint = "http://otel-collector:4318/v1/traces"
+
+[retention]
+older_than_days = 14
+keep_latest = 96
+vacuum = false

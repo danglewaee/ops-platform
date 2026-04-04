@@ -1,0 +1,21 @@
+{$OPS_PLATFORM_DEPLOY_SITE_ADDRESS}
+
+encode zstd gzip
+
+header {
+  X-Content-Type-Options nosniff
+  X-Frame-Options DENY
+  Referrer-Policy no-referrer
+}
+
+handle /health {
+  reverse_proxy api:8000
+}
+
+handle /ready {
+  reverse_proxy api:8000
+}
+
+handle {
+  reverse_proxy api:8000
+}

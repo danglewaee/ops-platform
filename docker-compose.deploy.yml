@@ -1,0 +1,160 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      OPS_PLATFORM_DEPLOY_SITE_ADDRESS: ${OPS_PLATFORM_DEPLOY_SITE_ADDRESS:-:80}
+    ports:
+      - "${OPS_PLATFORM_HTTP_PORT:-80}:80"
+      - "${OPS_PLATFORM_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: ${OPS_PLATFORM_POSTGRES_DB:-ops_platform}
+      POSTGRES_USER: ${OPS_PLATFORM_POSTGRES_USER:-ops}
+      POSTGRES_PASSWORD: ${OPS_PLATFORM_POSTGRES_PASSWORD:-ops}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${OPS_PLATFORM_POSTGRES_USER:-ops} -d ${OPS_PLATFORM_POSTGRES_DB:-ops_platform}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    restart: unless-stopped
+
+  timescale-init:
+    build:
+      context: .
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      OPS_PLATFORM_DB_PATH: ${OPS_PLATFORM_DB_PATH:-postgresql://${OPS_PLATFORM_POSTGRES_USER:-ops}:${OPS_PLATFORM_POSTGRES_PASSWORD:-ops}@timescaledb:5432/${OPS_PLATFORM_POSTGRES_DB:-ops_platform}}
+      OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS: ${OPS_PLATFORM_TIMESCALE_METRIC_RETENTION_DAYS-30}
+      OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS: ${OPS_PLATFORM_TIMESCALE_EVENT_RETENTION_DAYS-14}
+      OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS: ${OPS_PLATFORM_TIMESCALE_COMPRESS_AFTER_DAYS-7}
+      OPS_PLATFORM_TIMESCALE_CREATE_METRIC_ROLLUP: ${OPS_PLATFORM_TIMESCALE_CREATE_METRIC_ROLLUP:-true}
+      OPS_PLATFORM_TIMESCALE_AGGREGATE_BUCKET: ${OPS_PLATFORM_TIMESCALE_AGGREGATE_BUCKET:-5 minutes}
+      OPS_PLATFORM_TIMESCALE_AGGREGATE_NAME: ${OPS_PLATFORM_TIMESCALE_AGGREGATE_NAME:-metric_samples_5m}
+      OPS_PLATFORM_TIMESCALE_REFRESH_START_OFFSET: ${OPS_PLATFORM_TIMESCALE_REFRESH_START_OFFSET:-30 days}
+      OPS_PLATFORM_TIMESCALE_REFRESH_END_OFFSET: ${OPS_PLATFORM_TIMESCALE_REFRESH_END_OFFSET:-5 minutes}
+      OPS_PLATFORM_TIMESCALE_REFRESH_SCHEDULE_INTERVAL: ${OPS_PLATFORM_TIMESCALE_REFRESH_SCHEDULE_INTERVAL:-5 minutes}
+    command: ["python", "scripts/bootstrap_storage.py"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      timescale-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      OPS_PLATFORM_API_HOST: ${OPS_PLATFORM_API_HOST:-0.0.0.0}
+      OPS_PLATFORM_API_PORT: ${OPS_PLATFORM_API_PORT:-8000}
+      OPS_PLATFORM_DB_PATH: ${OPS_PLATFORM_DB_PATH:-postgresql://${OPS_PLATFORM_POSTGRES_USER:-ops}:${OPS_PLATFORM_POSTGRES_PASSWORD:-ops}@timescaledb:5432/${OPS_PLATFORM_POSTGRES_DB:-ops_platform}}
+      OPS_PLATFORM_AUTO_INIT_STORAGE: ${OPS_PLATFORM_AUTO_INIT_STORAGE:-true}
+      OPS_PLATFORM_AUTH_ENABLED: ${OPS_PLATFORM_AUTH_ENABLED:-true}
+      OPS_PLATFORM_API_KEYS: ${OPS_PLATFORM_API_KEYS:-change-me-token}
+      OPS_PLATFORM_AUTH_HEADER_NAME: ${OPS_PLATFORM_AUTH_HEADER_NAME:-x-api-key}
+      OPS_PLATFORM_ACTOR_HEADER_NAME: ${OPS_PLATFORM_ACTOR_HEADER_NAME:-x-ops-actor}
+      OPS_PLATFORM_RATE_LIMIT_ENABLED: ${OPS_PLATFORM_RATE_LIMIT_ENABLED:-true}
+      OPS_PLATFORM_RATE_LIMIT_BACKEND: ${OPS_PLATFORM_RATE_LIMIT_BACKEND:-redis}
+      OPS_PLATFORM_RATE_LIMIT_REQUESTS: ${OPS_PLATFORM_RATE_LIMIT_REQUESTS:-120}
+      OPS_PLATFORM_RATE_LIMIT_WINDOW_SECONDS: ${OPS_PLATFORM_RATE_LIMIT_WINDOW_SECONDS:-60}
+      OPS_PLATFORM_REDIS_URL: ${OPS_PLATFORM_REDIS_URL:-redis://redis:6379/0}
+      OPS_PLATFORM_REDIS_KEY_PREFIX: ${OPS_PLATFORM_REDIS_KEY_PREFIX:-ops-platform:rate-limit}
+      OPS_PLATFORM_AUDIT_LOG_ENABLED: ${OPS_PLATFORM_AUDIT_LOG_ENABLED:-true}
+      OPS_PLATFORM_DB_RETRY_ATTEMPTS: ${OPS_PLATFORM_DB_RETRY_ATTEMPTS:-5}
+      OPS_PLATFORM_DB_RETRY_BACKOFF_SECONDS: ${OPS_PLATFORM_DB_RETRY_BACKOFF_SECONDS:-0.5}
+      OPS_PLATFORM_DB_RETRY_MAX_BACKOFF_SECONDS: ${OPS_PLATFORM_DB_RETRY_MAX_BACKOFF_SECONDS:-5.0}
+      OPS_PLATFORM_ENABLE_TRACING: ${OPS_PLATFORM_ENABLE_TRACING:-true}
+      OPS_PLATFORM_OTLP_ENDPOINT: ${OPS_PLATFORM_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OPS_PLATFORM_OTEL_SERVICE_NAME: ${OPS_PLATFORM_OTEL_SERVICE_NAME:-ops-decision-platform-api}
+    expose:
+      - "8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./runs:/app/runs
+      - ./docs:/app/docs:ro
+      - ./deploy:/app/deploy:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; import sys; sys.exit(0 if urlopen('http://127.0.0.1:8000/ready', timeout=5).status == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+    profiles: ["worker"]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      timescale-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: ["python", "scripts/run_recurring_worker.py"]
+    environment:
+      OPS_PLATFORM_DB_PATH: ${OPS_PLATFORM_DB_PATH:-postgresql://${OPS_PLATFORM_POSTGRES_USER:-ops}:${OPS_PLATFORM_POSTGRES_PASSWORD:-ops}@timescaledb:5432/${OPS_PLATFORM_POSTGRES_DB:-ops_platform}}
+      OPS_PLATFORM_ENABLE_TRACING: ${OPS_PLATFORM_ENABLE_TRACING:-true}
+      OPS_PLATFORM_OTLP_ENDPOINT: ${OPS_PLATFORM_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OPS_PLATFORM_RECURRING_ENABLED: ${OPS_PLATFORM_RECURRING_ENABLED:-true}
+      OPS_PLATFORM_RECURRING_CONFIG: ${OPS_PLATFORM_RECURRING_CONFIG:-/app/deploy/recurring_pull.toml}
+      OPS_PLATFORM_RECURRING_INTERVAL_SECONDS: ${OPS_PLATFORM_RECURRING_INTERVAL_SECONDS:-300}
+      OPS_PLATFORM_RECURRING_FAIL_DELAY_SECONDS: ${OPS_PLATFORM_RECURRING_FAIL_DELAY_SECONDS:-30}
+      OPS_PLATFORM_RECURRING_SUMMARY_PATH: ${OPS_PLATFORM_RECURRING_SUMMARY_PATH:-/app/artifacts/recurring/latest-summary.json}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./runs:/app/runs
+      - ./docs:/app/docs:ro
+      - ./deploy:/app/deploy:ro
+    restart: unless-stopped
+
+volumes:
+  caddy_config:
+  caddy_data:
+  redis_data:
+  timescaledb_data:
