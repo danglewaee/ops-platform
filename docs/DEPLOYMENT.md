@@ -32,7 +32,9 @@ The deploy bundle is meant for a single host or VM where you want:
 - `deploy/Caddyfile`
 - `deploy/recurring_pull.example.toml`
 - `scripts/check_deploy_bundle.py`
+- `scripts/capture_deploy_evidence.py`
 - `scripts/run_recurring_worker.py`
+- `docs/DEPLOY_RUNBOOK.md`
 - `.github/workflows/deploy-config-validate.yml`
 
 ## Quick start
@@ -72,6 +74,23 @@ The repository also validates this deploy bundle in CI by checking:
 - deploy env parsing
 - deploy compose rendering
 - deploy compose rendering with the `worker` profile enabled
+
+## Real-host launch and evidence capture
+
+`docs/DEPLOYMENT.md` is the high-level bundle guide. For the concrete VM or host checklist, use [docs/DEPLOY_RUNBOOK.md](D:/CODE/Personal%20Website/ops-decision-platform/docs/DEPLOY_RUNBOOK.md).
+
+After the stack is up on a real host, capture proof with:
+
+```powershell
+python .\scripts\capture_deploy_evidence.py --env-file .\.env.deploy --output-dir .\artifacts\deploy-evidence\latest --full
+```
+
+That script writes:
+
+- endpoint payloads for `/health`, `/ready`, `/streams`, `/storage/stats`, and `/audit/events`
+- `deploy_evidence_summary.json`
+- `deploy_evidence_summary.md`
+- the recurring worker summary if it exists locally under the mounted `./artifacts` directory
 
 ## Public routing
 

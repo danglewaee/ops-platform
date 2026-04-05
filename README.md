@@ -77,6 +77,8 @@ ops-decision-platform/
   docs/
     ARCHITECTURE.md
     BENCHMARK_CASE_STUDY.md
+    DEPLOYMENT.md
+    DEPLOY_RUNBOOK.md
     PORTFOLIO_COPY.md
   ops_platform/
     __init__.py
@@ -99,6 +101,7 @@ ops-decision-platform/
   scripts/
     bootstrap_storage.py
     build_release_artifacts.py
+    capture_deploy_evidence.py
     run_benchmarks.py
     init_timescale.py
     run_api.py
@@ -478,6 +481,7 @@ The repository also includes:
 - [.github/workflows/timescale-integration.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/timescale-integration.yml) for manual full-stack Timescale integration runs with uploaded compose logs and summaries
 - [.github/workflows/deploy-config-validate.yml](D:/CODE/Personal%20Website/ops-decision-platform/.github/workflows/deploy-config-validate.yml) for deploy-bundle config validation across the base stack and `worker` profile
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the deployable single-host bundle with reverse proxy and optional recurring worker
+- [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) for the real-host launch checklist and post-deploy evidence capture flow
 
 For deploy packaging, start from:
 
@@ -492,6 +496,12 @@ If you want the recurring Prometheus worker too:
 
 ```powershell
 docker compose --env-file .\.env.deploy -f .\docker-compose.deploy.yml --profile worker up --build -d
+```
+
+After the stack is running on a real host, capture proof with:
+
+```powershell
+python .\scripts\capture_deploy_evidence.py --env-file .\.env.deploy --output-dir .\artifacts\deploy-evidence\latest --full
 ```
 
 `OPS_PLATFORM_API_PORT` controls the port the app listens on inside the container. `OPS_PLATFORM_HOST_PORT` controls the host-side published port. For smoke runs, keep the internal port at `8000` and move the host port if `8000` is already occupied.

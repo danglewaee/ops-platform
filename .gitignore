@@ -13,6 +13,7 @@ artifacts/serve.out.txt
 artifacts/serve.err.txt
 artifacts/*.sqlite3
 artifacts/benchmarks/
+artifacts/deploy-evidence/
 artifacts/release/
 runs/
 deploy/recurring_pull.toml
